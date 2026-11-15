@@ -119,11 +119,11 @@ export async function PUT(
 
       const slotInserts = slots.map((s: any, idx: number) => ({
         frame_version_id: versionId,
-        slot_index: s.slot_index || idx + 1,
-        x_coord: s.x_coord,
-        y_coord: s.y_coord,
-        width: s.width,
-        height: s.height,
+        slot_index: typeof s.slot_index === 'number' && s.slot_index > 0 ? s.slot_index : idx + 1,
+        x_coord: Math.round(s.x_coord || 0),
+        y_coord: Math.round(s.y_coord || 0),
+        width: Math.round(s.width || 0),
+        height: Math.round(s.height || 0),
         rotation: s.rotation || 0,
         fit_mode: s.fit_mode || 'cover',
         crop_config: s.crop_config || {},
