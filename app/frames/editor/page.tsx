@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   ZoomIn,
@@ -37,6 +37,7 @@ import { SmartTransparencyModal } from '@/components/frames/SmartTransparencyMod
 type TemplateType = '2_slot_top_bottom' | '2_slot_left_right' | '4_slot_2x2' | '6_slot_2x3' | 'custom';
 
 function FrameEditorContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const frameId = searchParams.get('id');
 
@@ -92,6 +93,8 @@ function FrameEditorContent() {
   const [toastMessage, setToastMessage] = useState<string>('Draf berhasil disimpan');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isSmartModalOpen, setIsSmartModalOpen] = useState<boolean>(false);
 
   // 4R Layout & Draggable Divider State
@@ -688,6 +691,28 @@ function FrameEditorContent() {
     }
   };
 
+  // Delete Frame permanently from API / Database
+  const handleDeleteFrame = async () => {
+    if (!frameId) return;
+    try {
+      setIsDeleting(true);
+      const res = await fetch(`/api/frames/${frameId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Gagal menghapus frame');
+      }
+      setIsDeleteModalOpen(false);
+      router.push('/frames');
+    } catch (err: any) {
+      console.error('Error deleting frame:', err);
+      alert(`Gagal menghapus frame: ${err.message || 'Terjadi kesalahan'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Exact 4R Canvas Dimensions:
   // Portrait: 380px × 570px (Aspect ratio 2:3, corresponding to 1200 × 1800 px at 300 DPI)
   // Landscape: 570px × 380px (Aspect ratio 3:2, corresponding to 1800 × 1200 px at 300 DPI)
@@ -794,11 +819,24 @@ function FrameEditorContent() {
 
         {/* Toolbar Right: Save & Publish */}
         <div className="flex items-center gap-2">
+          {frameId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDeleteModalOpen(true)}
+              disabled={isSaving || isDeleting}
+              className="text-xs gap-1 text-red-600 border-red-300 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30"
+              title="Hapus frame dari database"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Hapus Frame
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
             onClick={handleSaveDraft}
-            disabled={isSaving}
+            disabled={isSaving || isDeleting}
             className="text-xs gap-1"
           >
             {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
@@ -808,7 +846,7 @@ function FrameEditorContent() {
             variant="primary"
             size="sm"
             onClick={() => setIsPublishModalOpen(true)}
-            disabled={isSaving}
+            disabled={isSaving || isDeleting}
             className="text-xs gap-1"
           >
             <Send className="w-3.5 h-3.5" />
@@ -1330,6 +1368,31 @@ function FrameEditorContent() {
               <li>Status: PUBLISHED</li>
             </ul>
           </div>
+        </div>
+      </Modal>
+
+      {/* Delete Frame Permanently Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Hapus Frame Secara Permanen"
+        description="Tindakan ini tidak dapat dibatalkan. Frame akan dihapus secara menyeluruh dari basis data."
+        confirmLabel={isDeleting ? 'Menghapus...' : 'Ya, Hapus Permanen'}
+        confirmVariant="destructive"
+        cancelLabel="Batal"
+        onConfirm={handleDeleteFrame}
+      >
+        <div className="space-y-3 text-xs text-content-secondary">
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md text-red-600 dark:text-red-400 space-y-1">
+            <span className="font-semibold block text-[11px]">Peringatan Penghapusan Database:</span>
+            <ul className="list-disc list-inside text-[11px] space-y-0.5">
+              <li>Record frame <strong>{frameData.name}</strong> akan dihapus dari tabel <code>frames</code></li>
+              <li>Semua versi frame dan konfigurasi di <code>frame_slots</code> &amp; <code>frame_versions</code> akan dihapus bersih</li>
+              <li>File master PNG di Supabase Storage bucket <code>frames</code> akan dibersihkan</li>
+              <li>Frame akan otomatis dicabut dari daftar event aktif</li>
+            </ul>
+          </div>
+          <p>Apakah Anda yakin ingin menghapus frame ini secara permanen dari sistem?</p>
         </div>
       </Modal>
 

@@ -9,6 +9,7 @@ import {
   Eye,
   Edit3,
   Archive,
+  Trash2,
   Image as ImageIcon,
   CheckCircle2,
   Clock,
@@ -67,7 +68,38 @@ export default function FramesPage() {
   const [isSmartModalOpen, setIsSmartModalOpen] = useState<boolean>(false);
   const [pendingSlots, setPendingSlots] = useState<DetectedSlot[]>([]);
 
+  // Delete Frame Modal State
+  const [frameToDelete, setFrameToDelete] = useState<FrameItem | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Permanently delete a frame from database & storage
+  const handleDeleteFrame = async () => {
+    if (!frameToDelete) return;
+    try {
+      setIsDeleting(true);
+      const res = await fetch(`/api/frames/${frameToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Gagal menghapus frame');
+      }
+
+      setFrames((prev) => prev.filter((f) => f.id !== frameToDelete.id));
+      setIsDeleteModalOpen(false);
+      setToastMessage(`Frame "${frameToDelete.name}" berhasil dihapus secara permanen dari database.`);
+      setTimeout(() => setToastMessage(null), 4000);
+      setFrameToDelete(null);
+    } catch (err: any) {
+      alert(`Gagal menghapus frame: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Fetch real frames from backend
   const fetchFrames = async () => {
@@ -454,8 +486,17 @@ export default function FramesPage() {
                         Edit Slot
                       </Button>
                     </Link>
-                    <Button variant="ghost" size="sm" title="Arsipkan">
-                      <Archive className="w-3.5 h-3.5 text-content-muted hover:text-status-error" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Hapus Frame Permanen"
+                      onClick={() => {
+                        setFrameToDelete(frame);
+                        setIsDeleteModalOpen(true);
+                      }}
+                      className="hover:bg-status-error/10 text-content-muted hover:text-status-error transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -713,6 +754,34 @@ export default function FramesPage() {
           expectedDimensions={newFrameDimensions}
           onApply={handleSmartApply}
         />
+
+        {/* 6. Delete Frame Permanently Confirmation Modal */}
+        <Modal
+          isOpen={isDeleteModalOpen}
+          onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
+          title="Hapus Frame Permanen"
+          description={`Apakah Anda yakin ingin menghapus frame "${frameToDelete?.name}" secara permanen? Seluruh slot foto, riwayat versi rilis, dan file master PNG di storage akan dihapus bersih dari database.`}
+          confirmLabel={isDeleting ? 'Menghapus...' : 'Ya, Hapus Permanen'}
+          cancelLabel="Batal"
+          confirmVariant="destructive"
+          isLoading={isDeleting}
+          onConfirm={handleDeleteFrame}
+        >
+          <div className="p-3 bg-status-error/10 border border-status-error/30 rounded-lg text-xs text-status-error flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <p>
+              Tindakan ini tidak dapat dibatalkan. Frame ini akan segera dihapus dari katalog booth dan database Supabase secara permanen.
+            </p>
+          </div>
+        </Modal>
+
+        {/* 7. Success Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-4 py-3 rounded-xl shadow-elevation flex items-center gap-2.5 text-xs font-medium border border-stone-800 animate-in fade-in slide-in-from-bottom-2">
+            <CheckCircle2 className="w-4 h-4 text-brand" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
       </div>
     </AppShell>
   );

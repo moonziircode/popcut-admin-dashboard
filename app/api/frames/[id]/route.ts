@@ -154,3 +154,141 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const supabase = createAdminClient();
+
+    // 1. Fetch frame
+    const { data: frame, error: frameError } = await supabase
+      .from('frames')
+      .select('id, name, current_version_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (frameError || !frame) {
+      return NextResponse.json(
+        { success: false, error: 'Frame tidak ditemukan atau sudah dihapus.' },
+        { status: 404 }
+      );
+    }
+
+    // 2. Fetch all versions belonging to this frame
+    const { data: versions } = await supabase
+      .from('frame_versions')
+      .select('id, asset_path, thumbnail_path')
+      .eq('frame_id', id);
+
+    const versionIds = (versions || []).map((v) => v.id);
+
+    // 3. Delete physical assets from Supabase Storage bucket 'frames'
+    const storagePaths: string[] = [];
+    (versions || []).forEach((v) => {
+      if (v.asset_path) storagePaths.push(v.asset_path);
+      if (v.thumbnail_path) storagePaths.push(v.thumbnail_path);
+    });
+
+    if (storagePaths.length > 0) {
+      try {
+        await supabase.storage.from('frames').remove(storagePaths);
+      } catch (storageErr) {
+        console.warn('[Frame Delete] Storage removal warning:', storageErr);
+      }
+    }
+
+    // 4. Break circular FK: update frames.current_version_id to null
+    await supabase.from('frames').update({ current_version_id: null }).eq('id', id);
+
+    // 5. Delete frame_slots for all versions of this frame
+    if (versionIds.length > 0) {
+      // If any sessions reference frame_version_id, decouple them safely
+      try {
+        await supabase
+          .from('sessions')
+          .update({ frame_version_id: null })
+          .in('frame_version_id', versionIds);
+      } catch (sErr) {
+        console.warn('[Frame Delete] Sessions decouple warning:', sErr);
+      }
+
+      const { error: slotErr } = await supabase
+        .from('frame_slots')
+        .delete()
+        .in('frame_version_id', versionIds);
+
+      if (slotErr) {
+        console.warn('[Frame Delete] Slot delete warning:', slotErr);
+      }
+
+      // 6. Delete frame_versions
+      const { error: vErr } = await supabase
+        .from('frame_versions')
+        .delete()
+        .eq('frame_id', id);
+
+      if (vErr) {
+        console.warn('[Frame Delete] Version delete warning:', vErr);
+      }
+    }
+
+    // 7. Delete frame record itself permanently
+    const { error: deleteFrameErr } = await supabase
+      .from('frames')
+      .delete()
+      .eq('id', id);
+
+    if (deleteFrameErr) {
+      throw deleteFrameErr;
+    }
+
+    // 8. Clean up active events allowed_frame_ids array
+    try {
+      const { data: eventsWithFrame } = await supabase
+        .from('events')
+        .select('id, allowed_frame_ids');
+
+      if (eventsWithFrame && eventsWithFrame.length > 0) {
+        for (const ev of eventsWithFrame) {
+          if (Array.isArray(ev.allowed_frame_ids) && ev.allowed_frame_ids.includes(id)) {
+            const updatedAllowed = ev.allowed_frame_ids.filter((fid: string) => fid !== id);
+            await supabase
+              .from('events')
+              .update({ allowed_frame_ids: updatedAllowed })
+              .eq('id', ev.id);
+          }
+        }
+      }
+    } catch (evErr) {
+      console.warn('[Frame Delete] Event allowed_frame_ids cleanup warning:', evErr);
+    }
+
+    // 9. Log activity
+    try {
+      await supabase.from('activity_logs').insert({
+        action: 'FRAME_DELETE',
+        entity_type: 'frames',
+        entity_id: id,
+        description: `Frame "${frame.name}" berhasil dihapus secara permanen dari database dan storage.`,
+        before_state: { frame_name: frame.name, deleted_at: new Date().toISOString() },
+      });
+    } catch (logErr) {
+      console.warn('[Frame Delete] Activity log warning:', logErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Frame "${frame.name}" berhasil dihapus secara permanen dari database dan storage.`,
+      deleted_id: id,
+    });
+  } catch (err: any) {
+    console.error('Error deleting frame:', err);
+    return NextResponse.json(
+      { success: false, error: err.message || 'Gagal menghapus frame dari database.' },
+      { status: 500 }
+    );
+  }
+}
