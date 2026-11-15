@@ -1,7 +1,9 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Bell, Search, CheckCircle2, User, ShieldCheck } from 'lucide-react';
+import { initialEvents, initialBooths } from '@/lib/data/mock-data';
 
 interface HeaderProps {
   title?: string;
@@ -10,6 +12,9 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
+  const activeEvent = initialEvents.find((e) => e.is_active) || initialEvents[0];
+  const primaryRig = initialBooths[0];
+
   return (
     <header className="h-16 bg-surface border-b border-border px-6 flex items-center justify-between sticky top-0 z-20">
       {/* 1. Left: Breadcrumbs & Context */}
@@ -20,9 +25,9 @@ export function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
               <React.Fragment key={crumb.label}>
                 {idx > 0 && <span className="text-content-muted">/</span>}
                 {crumb.href ? (
-                  <a href={crumb.href} className="hover:text-content-primary transition-colors">
+                  <Link href={crumb.href} className="hover:text-content-primary transition-colors">
                     {crumb.label}
-                  </a>
+                  </Link>
                 ) : (
                   <span className="text-content-primary font-medium">{crumb.label}</span>
                 )}
@@ -37,11 +42,23 @@ export function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
 
       {/* 2. Right: Fleet Status Pill, Notifications, User Profile */}
       <div className="flex items-center gap-3">
-        {/* Fleet Sync Status Pill */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-surface-low border border-border rounded-full text-xs text-content-primary">
+        {/* Dynamic Active Event & Fleet Status Pill */}
+        <Link
+          href="/events"
+          className="hidden sm:flex items-center gap-2 px-3 py-1 bg-surface-low border border-border hover:border-brand rounded-full text-xs text-content-primary transition-colors group cursor-pointer"
+          title="Klik untuk kelola atau ganti Event Aktif"
+        >
           <span className="w-2 h-2 rounded-full bg-status-success animate-pulse" />
-          <span className="font-medium text-[11px]">3/3 Booth Online & Sinkron</span>
-        </div>
+          <span className="font-semibold text-[11px] text-content-primary flex items-center gap-1">
+            <span className="text-brand-contrast">🎪</span>
+            <span className="truncate max-w-[200px] group-hover:underline">
+              {activeEvent?.name || 'Popcut Wedding — The Ritz-Carlton'}
+            </span>
+          </span>
+          <span className="text-[10px] text-content-muted border-l border-border pl-2">
+            Rig #1 Online
+          </span>
+        </Link>
 
         {/* Notification Bell */}
         <button

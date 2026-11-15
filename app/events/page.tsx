@@ -1,0 +1,520 @@
+'use client';
+
+import React, { useState } from 'react';
+import Link from 'next/link';
+import {
+  CalendarDays,
+  Plus,
+  Send,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  MapPin,
+  Building2,
+  Tag,
+  Layers,
+  MonitorDot,
+  AlertTriangle,
+  ArrowRight,
+  ShieldCheck,
+  PartyPopper,
+  Filter,
+} from 'lucide-react';
+import { AppShell } from '@/components/layout/AppShell';
+import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
+import { initialEvents, initialPackages, initialFrames, initialBooths } from '@/lib/data/mock-data';
+import { PhotoboothEvent } from '@/types/database.types';
+
+export default function EventsPage() {
+  const [events, setEvents] = useState<PhotoboothEvent[]>(initialEvents);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  // Modals
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
+  const [targetEventToActivate, setTargetEventToActivate] = useState<PhotoboothEvent | null>(null);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+
+  // New Event Form State
+  const [eventName, setEventName] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [eventType, setEventType] = useState<'WEDDING' | 'CORPORATE' | 'BIRTHDAY' | 'GRADUATION' | 'COMMUNITY' | 'POPUP'>('WEDDING');
+  const [venue, setVenue] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [welcomeGreeting, setWelcomeGreeting] = useState('');
+  const [selectedPackages, setSelectedPackages] = useState<string[]>(['pkg-001', 'pkg-002']);
+  const [selectedFrames, setSelectedFrames] = useState<string[]>(['frame-001', 'frame-002']);
+
+  // Active event
+  const activeEvent = events.find((e) => e.is_active) || events[0];
+
+  // Handle Switch Active Event
+  const handleConfirmSwitchEvent = () => {
+    if (!targetEventToActivate) return;
+
+    setEvents((prev) =>
+      prev.map((e) => ({
+        ...e,
+        is_active: e.id === targetEventToActivate.id,
+        status: e.id === targetEventToActivate.id ? 'ACTIVE' : e.status === 'ACTIVE' ? 'COMPLETED' : e.status,
+      }))
+    );
+
+    setIsSwitchModalOpen(false);
+    setTargetEventToActivate(null);
+  };
+
+  // Handle Create Event
+  const handleCreateEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventName.trim() || !clientName.trim()) return;
+
+    const newEvt: PhotoboothEvent = {
+      id: `evt-${Date.now()}`,
+      internal_code: `EVT-${Date.now().toString().slice(-6)}`,
+      name: eventName.trim(),
+      client_name: clientName.trim(),
+      event_type: eventType,
+      venue: venue.trim() || 'Lokasi Klien',
+      start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
+      end_date: endDate ? new Date(endDate).toISOString() : new Date(Date.now() + 86400000).toISOString(),
+      is_active: false,
+      status: 'UPCOMING',
+      welcome_greeting: welcomeGreeting.trim() || `Selamat Datang di ${eventName}! Sentuh Layar untuk Mulai Foto`,
+      allowed_package_ids: selectedPackages,
+      allowed_frame_ids: selectedFrames,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    setEvents([newEvt, ...events]);
+    setIsCreateModalOpen(false);
+
+    // Reset Form
+    setEventName('');
+    setClientName('');
+    setVenue('');
+    setStartDate('');
+    setEndDate('');
+    setWelcomeGreeting('');
+  };
+
+  const filteredEvents = filterStatus === 'all'
+    ? events
+    : events.filter((e) => e.status.toLowerCase() === filterStatus.toLowerCase());
+
+  return (
+    <AppShell
+      title="Manajemen Event & Konfigurasi Kiosk"
+      breadcrumbs={[{ label: 'Bisnis' }, { label: 'Event & Konfigurasi' }]}
+    >
+      <div className="space-y-6">
+        {/* 1. Header with Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold font-headline text-content-primary tracking-tight">
+              Manajemen Event Dinamis
+            </h2>
+            <p className="text-xs text-content-secondary mt-0.5">
+              Atur identitas event, branding visual, paket khusus, dan frame yang aktif berjalan di armada photobooth tanpa ubah kode aplikasi.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setIsPublishModalOpen(true)}>
+              <Send className="w-3.5 h-3.5" />
+              Terbitkan Rilis Konfig
+            </Button>
+            <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
+              <Plus className="w-3.5 h-3.5" />
+              Buat Event Baru
+            </Button>
+          </div>
+        </div>
+
+        {/* 2. Primary Hero Card: Currently Active Event Running on Rig */}
+        {activeEvent && (
+          <div className="bg-surface border-2 border-brand/50 rounded-xl p-5 shadow-elevation relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-brand text-brand-contrast px-4 py-1 rounded-bl-lg font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-700 animate-pulse" />
+              SEDANG AKTIF DI BOOTH
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+              <div className="lg:col-span-8 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="brand">{activeEvent.event_type}</Badge>
+                  <span className="text-[11px] font-mono text-content-muted">{activeEvent.internal_code}</span>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-bold font-headline text-content-primary">
+                    {activeEvent.name}
+                  </h3>
+                  <p className="text-xs text-content-secondary mt-0.5 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-content-muted" />
+                    Klien: <strong className="text-content-primary">{activeEvent.client_name}</strong>
+                    <span className="text-content-muted">•</span>
+                    <MapPin className="w-3.5 h-3.5 text-content-muted" />
+                    {activeEvent.venue}
+                  </p>
+                </div>
+
+                {/* Subtitle Display */}
+                <div className="bg-canvas p-3 rounded-lg border border-border text-xs">
+                  <span className="text-[10px] text-content-muted uppercase tracking-wider block font-semibold mb-0.5">
+                    Teks Salam di Layar Kiosk Customer:
+                  </span>
+                  <p className="text-content-primary italic">
+                    &quot;{activeEvent.welcome_greeting}&quot;
+                  </p>
+                </div>
+
+                {/* Hardware & Package details */}
+                <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
+                  <div className="flex items-center gap-1.5 text-content-secondary">
+                    <MonitorDot className="w-4 h-4 text-emerald-600" />
+                    <span>Rig Operasional: <strong>Mobile Rig #1 (MacBook Pro M1 Pro)</strong></span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-content-secondary">
+                    <Tag className="w-4 h-4 text-brand-dark" />
+                    <span>{activeEvent.allowed_package_ids.length} Paket Aktif</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-content-secondary">
+                    <Layers className="w-4 h-4 text-cyan-600" />
+                    <span>{activeEvent.allowed_frame_ids.length} Frame Khusus</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Status Box */}
+              <div className="lg:col-span-4 bg-canvas/70 p-4 rounded-lg border border-border flex flex-col justify-between space-y-3">
+                <div>
+                  <span className="text-[11px] font-semibold text-content-primary block">
+                    Status Sinkronisasi Customer App
+                  </span>
+                  <span className="text-[10px] text-content-secondary block mt-0.5">
+                    Versi rilis aktif: <strong className="font-mono text-content-primary">v2.4.1 (APPLIED)</strong>
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-[11px]">
+                  <div className="flex justify-between">
+                    <span className="text-content-secondary">DSLR Camera:</span>
+                    <span className="font-semibold text-emerald-700">Canon EOS 60D</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-content-secondary">Printer Fisik:</span>
+                    <span className="font-semibold text-emerald-700">Epson L3250</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-content-secondary">Mode Layar:</span>
+                    <span className="font-semibold text-content-primary">Customer Fullscreen Touch</span>
+                  </div>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full text-xs"
+                  onClick={() => {
+                    const nextEvt = events.find((e) => !e.is_active);
+                    if (nextEvt) {
+                      setTargetEventToActivate(nextEvt);
+                      setIsSwitchModalOpen(true);
+                    }
+                  }}
+                >
+                  <CalendarDays className="w-3.5 h-3.5 mr-1" />
+                  Ganti Event untuk Booth Ini
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Filter Pills */}
+        <div className="flex items-center gap-2 text-xs overflow-x-auto pb-1">
+          <span className="text-content-muted font-medium pr-1 text-[11px] uppercase tracking-wider">Status:</span>
+          {[
+            { id: 'all', label: 'Semua Event' },
+            { id: 'active', label: 'Aktif' },
+            { id: 'upcoming', label: 'Mendatang' },
+            { id: 'completed', label: 'Selesai' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setFilterStatus(cat.id)}
+              className={`px-3 py-1 rounded-full border transition-all text-xs font-medium ${
+                filterStatus === cat.id
+                  ? 'bg-content-primary text-white border-content-primary shadow-sm'
+                  : 'bg-surface text-content-secondary border-border hover:border-border-strong hover:text-content-primary'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 4. Events Catalog Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredEvents.map((evt) => {
+            const isCurActive = evt.is_active;
+            return (
+              <Card
+                key={evt.id}
+                className={`p-5 flex flex-col justify-between transition-all ${
+                  isCurActive ? 'border-2 border-brand bg-surface' : 'hover:border-border-strong'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Badge variant={isCurActive ? 'brand' : evt.status === 'UPCOMING' ? 'info' : 'neutral'}>
+                      {evt.status}
+                    </Badge>
+                    <span className="text-[10px] font-mono text-content-muted">{evt.event_type}</span>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-bold font-headline text-content-primary line-clamp-1">
+                      {evt.name}
+                    </h4>
+                    <p className="text-xs text-content-secondary mt-0.5 line-clamp-1">
+                      {evt.client_name} • {evt.venue}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded bg-canvas border border-border text-[11px] space-y-1">
+                    <div className="flex justify-between text-content-secondary">
+                      <span>Paket Tersedia:</span>
+                      <strong className="text-content-primary">{evt.allowed_package_ids.length} Paket</strong>
+                    </div>
+                    <div className="flex justify-between text-content-secondary">
+                      <span>Frame Khusus:</span>
+                      <strong className="text-content-primary">{evt.allowed_frame_ids.length} Frame</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border mt-4 flex items-center justify-between gap-2">
+                  {isCurActive ? (
+                    <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Sedang Aktif di Kiosk
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-xs w-full"
+                      onClick={() => {
+                        setTargetEventToActivate(evt);
+                        setIsSwitchModalOpen(true);
+                      }}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 mr-1 text-brand-dark" />
+                      Aktifkan di Booth
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* 5. MODAL: Buat Event Baru */}
+        <Modal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          title="Buat Event Photobooth Baru"
+          description="Konfigurasikan identitas event, lokasi, custom greeting, dan paket foto yang akan ditampilkan pada layar Customer Application."
+          maxWidth="2xl"
+          cancelLabel="Batal"
+          confirmLabel="Simpan Event"
+          onConfirm={() => {
+            const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+            handleCreateEvent(fakeEvent);
+          }}
+        >
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-content-primary mb-1">
+                  Nama Event <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="e.g. Popcut Wedding — The Ritz-Carlton"
+                  className="w-full h-9 bg-surface border border-border rounded px-3 text-xs focus:outline-none focus:border-brand"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-content-primary mb-1">
+                  Nama Klien / Penyelenggara <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="e.g. Bima & Sarah Wedding"
+                  className="w-full h-9 bg-surface border border-border rounded px-3 text-xs focus:outline-none focus:border-brand"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-content-primary mb-1">
+                  Tipe Event
+                </label>
+                <select
+                  value={eventType}
+                  onChange={(e) => setEventType(e.target.value as any)}
+                  className="w-full h-9 bg-surface border border-border rounded px-3 text-xs focus:outline-none focus:border-brand"
+                >
+                  <option value="WEDDING">Wedding & Engagement</option>
+                  <option value="CORPORATE">Corporate & Conference</option>
+                  <option value="BIRTHDAY">Birthday & Sweet 17</option>
+                  <option value="GRADUATION">Graduation & Wisuda</option>
+                  <option value="COMMUNITY">Community & Gathering</option>
+                  <option value="POPUP">Public Pop-Up Booth</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-content-primary mb-1">
+                  Lokasi / Venue Acara
+                </label>
+                <input
+                  type="text"
+                  value={venue}
+                  onChange={(e) => setVenue(e.target.value)}
+                  placeholder="e.g. Grand Ballroom The Ritz-Carlton"
+                  className="w-full h-9 bg-surface border border-border rounded px-3 text-xs focus:outline-none focus:border-brand"
+                />
+              </div>
+            </div>
+
+            {/* Custom Welcome Greeting */}
+            <div>
+              <label className="block text-xs font-semibold text-content-primary mb-1">
+                Teks Sambutan Layar Kiosk (Welcome Greeting)
+              </label>
+              <input
+                type="text"
+                value={welcomeGreeting}
+                onChange={(e) => setWelcomeGreeting(e.target.value)}
+                placeholder="e.g. Selamat Datang di Pernikahan Bima & Sarah! Sentuh Layar untuk Mulai Foto"
+                className="w-full h-9 bg-surface border border-border rounded px-3 text-xs focus:outline-none focus:border-brand"
+              />
+              <span className="text-[10px] text-content-muted mt-1 block">
+                Teks ini akan langsung muncul di Layar Awal (Welcome Screen) Customer Application.
+              </span>
+            </div>
+
+            {/* Package selector */}
+            <div>
+              <label className="block text-xs font-semibold text-content-primary mb-1.5">
+                Paket Foto yang Diberlakukan untuk Event Ini:
+              </label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {initialPackages.map((pkg) => {
+                  const isChecked = selectedPackages.includes(pkg.id);
+                  return (
+                    <label
+                      key={pkg.id}
+                      className={`p-2.5 rounded border flex items-center gap-2 cursor-pointer transition-colors ${
+                        isChecked ? 'border-brand bg-brand-light/20' : 'border-border bg-surface'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedPackages([...selectedPackages, pkg.id]);
+                          } else {
+                            setSelectedPackages(selectedPackages.filter((id) => id !== pkg.id));
+                          }
+                        }}
+                        className="rounded border-border text-brand focus:ring-brand"
+                      />
+                      <div>
+                        <span className="font-semibold block text-content-primary">{pkg.name}</span>
+                        <span className="text-[10px] text-content-muted">Rp {pkg.price.toLocaleString('id-ID')}</span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </Modal>
+
+        {/* 6. MODAL: Konfirmasi Switch Active Event (Safe Switching Mechanism) */}
+        <Modal
+          isOpen={isSwitchModalOpen}
+          onClose={() => setIsSwitchModalOpen(false)}
+          title="Konfirmasi Pergantian Event Aktif di Booth"
+          description="Pastikan tidak ada sesi foto yang sedang berjalan di booth sebelum mengalihkan identitas event."
+          cancelLabel="Batal"
+          confirmLabel="Ya, Alihkan Booth ke Event Ini"
+          onConfirm={handleConfirmSwitchEvent}
+        >
+          {targetEventToActivate && (
+            <div className="space-y-4 text-xs text-content-secondary">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-amber-950">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  Mekanisme Pergantian Aman (Safe Switch Protocol)
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-800">
+                  <li>Layar Customer Application pada MacBook akan otomatis berganti ke identitas: <strong>{targetEventToActivate.name}</strong>.</li>
+                  <li>Paket dan frame yang ditargetkan akan langsung disinkronkan ke cache lokal booth.</li>
+                  <li>Riwayat transaksi event sebelumnya tetap tersimpan aman dan tidak akan terhapus.</li>
+                </ul>
+              </div>
+
+              <div className="p-3 bg-surface border border-border rounded-lg space-y-1 text-content-primary">
+                <div className="text-[11px] text-content-muted">Target Event Baru:</div>
+                <div className="font-bold text-sm font-headline">{targetEventToActivate.name}</div>
+                <div className="text-[11px] text-content-secondary">{targetEventToActivate.client_name} • {targetEventToActivate.venue}</div>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* 7. MODAL: Terbitkan Konfigurasi */}
+        <Modal
+          isOpen={isPublishModalOpen}
+          onClose={() => setIsPublishModalOpen(false)}
+          title="Terbitkan Rilis Konfigurasi ke Kiosk"
+          description="Konfigurasi event aktif, paket, dan frame akan dipaketkan ke dalam manifest rilis immutable baru."
+          confirmLabel="Terbitkan Rilis Sekarang"
+          cancelLabel="Batal"
+          onConfirm={() => setIsPublishModalOpen(false)}
+        >
+          <div className="space-y-3 text-xs text-content-secondary">
+            <p>
+              Rilis baru <strong>v2.4.2</strong> akan didistribusikan ke <strong>Mobile Rig #1</strong>. Aplikasi booth akan memverifikasi checksum SHA-256 dan menerapkan konfigurasi secara atomik.
+            </p>
+            <div className="p-3 bg-canvas border border-border rounded-lg text-[11px] space-y-1">
+              <div>Event Target: <strong>{activeEvent?.name}</strong></div>
+              <div>Jumlah Paket: <strong>{activeEvent?.allowed_package_ids.length}</strong></div>
+              <div>Jumlah Frame: <strong>{activeEvent?.allowed_frame_ids.length}</strong></div>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    </AppShell>
+  );
+}

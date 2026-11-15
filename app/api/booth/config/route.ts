@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initialPackages, initialFrames } from '@/lib/data/mock-data';
+import { initialPackages, initialFrames, initialEvents } from '@/lib/data/mock-data';
 import { BoothConfigDeliveryResponse } from '@/types/shared-contract';
 
 export async function GET(req: NextRequest) {
@@ -17,20 +17,40 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Retrieve active event
+  const activeEvent = initialEvents.find((e) => e.is_active) || initialEvents[0];
+
+  // Filter packages and frames for active event
+  const eventPackages = initialPackages.filter(
+    (p) => p.is_active && !p.is_archived && (!activeEvent.allowed_package_ids.length || activeEvent.allowed_package_ids.includes(p.id))
+  );
+
+  const eventFrames = initialFrames.filter(
+    (f) => !f.is_archived && (!activeEvent.allowed_frame_ids.length || activeEvent.allowed_frame_ids.includes(f.id))
+  );
+
   const response: BoothConfigDeliveryResponse = {
     schema_version: 1,
     config_version_id: 'cfg-v2.4.1',
     version_number: 'v2.4.1',
     booth_id: boothId,
     published_at: new Date().toISOString(),
-    packages: initialPackages.filter((p) => p.is_active && !p.is_archived),
+    event_info: {
+      event_id: activeEvent.id,
+      event_name: activeEvent.name,
+      client_name: activeEvent.client_name,
+      venue: activeEvent.venue,
+      theme_color: activeEvent.custom_theme_color,
+      welcome_greeting: activeEvent.welcome_greeting,
+    },
+    packages: eventPackages.length > 0 ? eventPackages : initialPackages.filter((p) => p.is_active),
     additional_print_pricing: {
       price_per_unit: 15000,
       min_quantity: 1,
       quantity_increment: 1,
       max_quantity: 6,
     },
-    frames: initialFrames.map((f) => ({
+    frames: (eventFrames.length > 0 ? eventFrames : initialFrames).map((f) => ({
       ...f,
       slots: [
         {
@@ -58,15 +78,17 @@ export async function GET(req: NextRequest) {
     })),
     promotions: [],
     kiosk_settings: {
-      welcome_title: 'Selamat Datang di Popcut.id',
+      welcome_title: activeEvent.name,
       idle_timeout_seconds: 60,
       payment_timeout_seconds: 180,
       session_duration_minutes: 10,
       allow_retakes: true,
       max_retakes_per_pose: 2,
       enable_live_photo: true,
+      event_name: activeEvent.name,
+      event_venue: activeEvent.venue,
     },
-    assets_manifest: initialFrames.map((f) => ({
+    assets_manifest: (eventFrames.length > 0 ? eventFrames : initialFrames).map((f) => ({
       asset_type: 'FRAME_MASTER',
       asset_id: f.id,
       version_number: 1,

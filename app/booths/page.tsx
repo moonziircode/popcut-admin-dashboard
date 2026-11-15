@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   MonitorDot,
   Plus,
@@ -15,6 +16,8 @@ import {
   Clock,
   ExternalLink,
   ShieldAlert,
+  CalendarDays,
+  Sparkles,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -94,6 +97,46 @@ export default function BoothsPage() {
               <Plus className="w-3.5 h-3.5" />
               Registrasi Booth Baru
             </Button>
+          </div>
+        </div>
+
+        {/* Dynamic Event Mobile Rig Active Banner */}
+        <div className="p-4 bg-surface border-2 border-brand/40 rounded-xl shadow-xs relative overflow-hidden">
+          <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-brand/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-brand text-brand-contrast">
+                  UNIT RIG UTAMA AKTIF
+                </span>
+                <span className="text-xs font-mono text-content-secondary">
+                  Hardware: MacBook Pro M1 Pro (16-inch, 2021)
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-content-primary font-headline flex items-center gap-2">
+                <span>🎪 Event Aktif:</span>
+                <span className="text-brand-contrast underline decoration-brand">
+                  Popcut Wedding — The Ritz-Carlton
+                </span>
+              </h3>
+              <p className="text-xs text-content-secondary">
+                Venue: Grand Ballroom, The Ritz-Carlton Jakarta Mega Kuningan • Seluruh paket, frame, dan voucher otomatis diselaraskan ke Customer App booth ini.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Link href="/events">
+                <Button variant="primary" size="sm" className="bg-brand text-brand-contrast hover:bg-brand-hover">
+                  <CalendarDays className="w-4 h-4 mr-1.5" />
+                  Ganti Event Aktif
+                </Button>
+              </Link>
+              <Link href="/frames">
+                <Button variant="outline" size="sm" className="border-border hover:bg-canvas">
+                  Atur Frame Event
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
 

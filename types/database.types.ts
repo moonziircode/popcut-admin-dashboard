@@ -74,6 +74,26 @@ export interface Permission {
   description?: string | null;
 }
 
+export interface PhotoboothEvent {
+  id: string;
+  internal_code: string;
+  name: string; // e.g. "Popcut Wedding — The Ritz-Carlton"
+  client_name: string; // e.g. "Bima & Sarah Wedding"
+  event_type: 'WEDDING' | 'CORPORATE' | 'BIRTHDAY' | 'GRADUATION' | 'COMMUNITY' | 'POPUP';
+  venue: string; // e.g. "Grand Ballroom, The Ritz-Carlton Jakarta"
+  start_date: string;
+  end_date: string;
+  is_active: boolean; // currently running event on booth
+  status: 'DRAFT' | 'ACTIVE' | 'UPCOMING' | 'COMPLETED' | 'ARCHIVED';
+  logo_url?: string | null;
+  welcome_greeting?: string | null;
+  custom_theme_color?: string | null;
+  allowed_package_ids: string[];
+  allowed_frame_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Booth {
   id: string;
   booth_code: string;
@@ -82,6 +102,9 @@ export interface Booth {
   status: BoothStatusType;
   current_config_version_id?: string | null;
   target_config_version_id?: string | null;
+  active_event_id?: string | null;
+  active_event_name?: string | null;
+  hardware_rig_name?: string | null;
   app_version?: string | null;
   last_seen_at?: string | null;
   camera_status: string;
@@ -90,6 +113,7 @@ export interface Booth {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  active_event?: PhotoboothEvent;
 }
 
 export interface Package {

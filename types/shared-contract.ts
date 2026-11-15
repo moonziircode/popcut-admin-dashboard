@@ -76,6 +76,16 @@ export interface BoothConfigDeliveryResponse {
     allow_retakes: boolean;
     max_retakes_per_pose: number;
     enable_live_photo: boolean;
+    event_name?: string;
+    event_venue?: string;
+  };
+  event_info?: {
+    event_id: string;
+    event_name: string;
+    client_name: string;
+    venue: string;
+    theme_color?: string | null;
+    welcome_greeting?: string | null;
   };
   assets_manifest: AssetManifestEntry[];
 }

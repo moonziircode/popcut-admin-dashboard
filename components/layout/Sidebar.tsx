@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  CalendarDays,
   LayoutDashboard,
   Package,
   Layers,
@@ -46,6 +47,7 @@ const navSections: NavSection[] = [
   {
     title: 'BISNIS',
     items: [
+      { name: 'Event & Konfigurasi', href: '/events', icon: CalendarDays },
       { name: 'Paket & Harga', href: '/packages', icon: Package },
       { name: 'Bingkai & Slot', href: '/frames', icon: Layers },
       { name: 'Promo & Voucher', href: '/promotions', icon: Tag },
