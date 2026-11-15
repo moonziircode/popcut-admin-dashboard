@@ -76,17 +76,26 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Mark as CLAIMED / USED
+    const isValidUuid = (val: any) =>
+      typeof val === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    const dbSessionId = isValidUuid(session_id) ? session_id : null;
+
     const { error: claimErr } = await supabase
       .from('prepaid_tickets')
       .update({
         status: 'CLAIMED',
         claimed_at: new Date().toISOString(),
-        claimed_session_id: session_id || null,
+        claimed_session_id: dbSessionId,
       })
       .eq('id', ticket.id);
 
     if (claimErr) {
       console.error('Error claiming ticket:', claimErr);
+      return NextResponse.json(
+        { code: 'DB_ERROR', message: `Gagal memperbarui status tiket: ${claimErr.message}` },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({

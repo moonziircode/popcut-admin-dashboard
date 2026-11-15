@@ -3,7 +3,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, subtotal = 35000, session_id = null, transaction_id = null, booth_id = null, validate_only = false } = await req.json();
+    const body = await req.json();
+    const {
+      code,
+      session_id = null,
+      transaction_id = null,
+      booth_id = null,
+      validate_only = false,
+    } = body;
+    const effectiveSubtotal = Number(body.subtotal || body.cart_total || body.order_amount) || 35000;
 
     if (!code || !code.trim()) {
       return NextResponse.json(
@@ -14,6 +22,10 @@ export async function POST(req: NextRequest) {
 
     const cleanCode = code.trim().toUpperCase();
     const supabase = createAdminClient();
+
+    const isValidUuid = (val: any) =>
+      typeof val === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
     // 1. If validate_only mode (check validity without incrementing usage)
     if (validate_only) {
@@ -62,7 +74,7 @@ export async function POST(req: NextRequest) {
       }
 
       let discountAmount = 0;
-      const pSubtotal = Number(subtotal) || 35000;
+      const pSubtotal = effectiveSubtotal;
       if (promo.discount_type === 'FREE_100') {
         discountAmount = pSubtotal;
       } else if (promo.discount_type === 'PERCENTAGE') {
@@ -86,10 +98,10 @@ export async function POST(req: NextRequest) {
     // 2. Atomic Redemption via Supabase RPC
     const { data: rpcResult, error: rpcError } = await supabase.rpc('redeem_voucher_atomic', {
       p_code: cleanCode,
-      p_session_id: session_id,
-      p_transaction_id: transaction_id,
-      p_booth_id: booth_id,
-      p_subtotal: Number(subtotal) || 35000,
+      p_session_id: isValidUuid(session_id) ? session_id : null,
+      p_transaction_id: isValidUuid(transaction_id) ? transaction_id : null,
+      p_booth_id: isValidUuid(booth_id) ? booth_id : null,
+      p_subtotal: effectiveSubtotal,
     });
 
     if (rpcError) {
