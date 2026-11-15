@@ -16,6 +16,7 @@ export interface ModalProps {
   onConfirm?: () => void;
   confirmVariant?: 'primary' | 'destructive';
   isLoading?: boolean;
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl';
 }
 
 export function Modal({
@@ -29,6 +30,7 @@ export function Modal({
   onConfirm,
   confirmVariant = 'primary',
   isLoading = false,
+  maxWidth = 'md',
 }: ModalProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -46,10 +48,24 @@ export function Modal({
 
   if (!isOpen) return null;
 
+  const maxWidthClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+    '2xl': 'max-w-2xl',
+    '3xl': 'max-w-3xl',
+    '4xl': 'max-w-4xl',
+    '5xl': 'max-w-5xl',
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="w-full max-w-md bg-surface border border-border shadow-elevation rounded-lg overflow-hidden animate-in zoom-in-95 duration-200"
+        className={cn(
+          'w-full bg-surface border border-border shadow-elevation rounded-lg overflow-hidden animate-in zoom-in-95 duration-200',
+          maxWidthClasses[maxWidth] || 'max-w-md'
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

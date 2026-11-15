@@ -28,6 +28,8 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { FrameSlot } from '@/types/database.types';
+import { DetectedSlot } from '@/lib/utils/image-transparency';
+import { SmartTransparencyModal } from '@/components/frames/SmartTransparencyModal';
 
 function FrameEditorContent() {
   const searchParams = useSearchParams();
@@ -95,6 +97,7 @@ function FrameEditorContent() {
   const [toastMessage, setToastMessage] = useState<string>('Draf berhasil disimpan');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isSmartModalOpen, setIsSmartModalOpen] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -194,6 +197,40 @@ function FrameEditorContent() {
     }
   };
 
+  // Callback when Smart Transparency is applied in Editor
+  const handleSmartApplyInEditor = (
+    processedFile: File,
+    processedUrl: string,
+    detectedSlots: DetectedSlot[]
+  ) => {
+    setFrameData((prev) => ({
+      ...prev,
+      asset_url: processedUrl,
+    }));
+
+    if (detectedSlots.length > 0) {
+      const newSlots: FrameSlot[] = detectedSlots.map((s) => ({
+        id: `slot-${s.slot_index}`,
+        frame_version_id: frameData.id || 'fv-001',
+        slot_index: s.slot_index,
+        x_coord: s.x_coord,
+        y_coord: s.y_coord,
+        width: s.width,
+        height: s.height,
+        rotation: 0,
+        fit_mode: 'cover',
+        created_at: new Date().toISOString(),
+      }));
+      setSlots(newSlots);
+      setSelectedSlotId(newSlots[0].id);
+      setToastMessage(`✨ Berhasil membersihkan latar & memetakan ${newSlots.length} slot foto otomatis!`);
+    } else {
+      setToastMessage('Frame transparan berhasil diterapkan!');
+    }
+    setIsSavedToast(true);
+    setTimeout(() => setIsSavedToast(false), 3500);
+  };
+
   // Save Draft to API
   const handleSaveDraft = async () => {
     try {
@@ -285,6 +322,19 @@ function FrameEditorContent() {
             <UploadCloud className="w-3.5 h-3.5" />
             {frameData.asset_url ? 'Ganti PNG Master' : 'Unggah File PNG'}
           </Button>
+
+          {frameData.asset_url && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsSmartModalOpen(true)}
+              className="text-xs gap-1.5 border-brand/60 bg-brand-light/30 hover:bg-brand-light/60 text-brand-dark font-medium shadow-2xs"
+              title="Bersihkan background solid dan deteksi otomatis slot foto"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-brand-dark" />
+              AI Transparency & Auto-Slots
+            </Button>
+          )}
 
           <div className="flex items-center gap-1 bg-canvas border border-border rounded p-0.5 text-xs">
             <button
@@ -664,6 +714,16 @@ function FrameEditorContent() {
           </div>
         </div>
       </Modal>
+
+      {/* AI Smart Transparency & Auto-Slot Detector Modal */}
+      <SmartTransparencyModal
+        isOpen={isSmartModalOpen}
+        onClose={() => setIsSmartModalOpen(false)}
+        imageUrl={frameData.asset_url || null}
+        originalFileName={`${frameData.name}.png`}
+        expectedDimensions={frameData.dimensions as '2x6' | '4x6'}
+        onApply={handleSmartApplyInEditor}
+      />
     </div>
   );
 }
