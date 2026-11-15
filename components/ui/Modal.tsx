@@ -12,6 +12,7 @@ export interface ModalProps {
   description?: string;
   children?: React.ReactNode;
   confirmLabel?: string;
+  cancelLabel?: string;
   onConfirm?: () => void;
   confirmVariant?: 'primary' | 'destructive';
   isLoading?: boolean;
@@ -24,6 +25,7 @@ export function Modal({
   description,
   children,
   confirmLabel,
+  cancelLabel = 'Batal',
   onConfirm,
   confirmVariant = 'primary',
   isLoading = false,
@@ -70,7 +72,7 @@ export function Modal({
         {/* Footer Actions */}
         <div className="flex items-center justify-end gap-2 p-3 bg-canvas/40 border-t border-border">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={isLoading}>
-            Batal
+            {cancelLabel}
           </Button>
           {confirmLabel && onConfirm && (
             <Button

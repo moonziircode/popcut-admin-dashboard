@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Undo2,
@@ -18,14 +19,35 @@ import {
   Eye,
   Sliders,
   CheckCircle2,
+  UploadCloud,
+  ImageIcon,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { FrameSlot } from '@/types/database.types';
 
-export default function FrameEditorPage() {
-  // Initial frame slots in percentage relative to frame canvas (width: 100%, height: 100%)
+function FrameEditorContent() {
+  const searchParams = useSearchParams();
+  const frameId = searchParams.get('id');
+
+  const [frameData, setFrameData] = useState<{
+    id?: string;
+    name: string;
+    dimensions: string;
+    aspect_ratio: string;
+    asset_url?: string | null;
+    status: string;
+  }>({
+    name: 'Retro Pastel 4-Grid v2.1',
+    dimensions: '2x6',
+    aspect_ratio: '1:3',
+    asset_url: null,
+    status: 'DRAFT',
+  });
+
   const [slots, setSlots] = useState<FrameSlot[]>([
     {
       id: 'slot-1',
@@ -70,8 +92,56 @@ export default function FrameEditorPage() {
   const [isPreviewActive, setIsPreviewActive] = useState<boolean>(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState<boolean>(false);
   const [isSavedToast, setIsSavedToast] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>('Draf berhasil disimpan');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  const selectedSlot = slots.find((s) => s.id === selectedSlotId) || slots[0];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch frame from API if id param provided
+  useEffect(() => {
+    if (!frameId) return;
+
+    const loadFrame = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch(`/api/frames/${frameId}`);
+        const data = await res.json();
+        if (data.success && data.frame) {
+          setFrameData({
+            id: data.frame.id,
+            name: data.frame.name,
+            dimensions: data.frame.dimensions,
+            aspect_ratio: data.frame.aspect_ratio,
+            asset_url: data.asset_url,
+            status: data.version?.status || 'DRAFT',
+          });
+
+          if (data.slots && data.slots.length > 0) {
+            setSlots(data.slots);
+            setSelectedSlotId(data.slots[0].id);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load frame from API:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFrame();
+  }, [frameId]);
+
+  const selectedSlot = slots.find((s) => s.id === selectedSlotId) || slots[0] || {
+    id: 'temp',
+    slot_index: 1,
+    x_coord: 10,
+    y_coord: 10,
+    width: 80,
+    height: 25,
+    rotation: 0,
+    fit_mode: 'cover',
+  };
 
   // Update selected slot properties
   const updateSelectedSlot = (updates: Partial<FrameSlot>) => {
@@ -84,12 +154,12 @@ export default function FrameEditorPage() {
     const newIndex = slots.length + 1;
     const newSlot: FrameSlot = {
       id: `slot-${Date.now()}`,
-      frame_version_id: 'fv-001',
+      frame_version_id: frameData.id || 'fv-001',
       slot_index: newIndex,
-      x_coord: 15,
-      y_coord: 15 + slots.length * 5,
-      width: 70,
-      height: 20,
+      x_coord: 10,
+      y_coord: Math.min(80, 10 + (slots.length % 4) * 20),
+      width: frameData.dimensions === '4x6' ? 40 : 80,
+      height: frameData.dimensions === '4x6' ? 40 : 22,
       rotation: 0,
       fit_mode: 'cover',
       created_at: new Date().toISOString(),
@@ -105,10 +175,70 @@ export default function FrameEditorPage() {
     setSelectedSlotId(remaining[0].id);
   };
 
-  const handleSaveDraft = () => {
-    setIsSavedToast(true);
-    setTimeout(() => setIsSavedToast(false), 2500);
+  // Replace or upload local PNG preview directly
+  const handleDirectPngUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
+        alert('File harus berformat PNG transparan.');
+        return;
+      }
+      const localUrl = URL.createObjectURL(file);
+      setFrameData((prev) => ({
+        ...prev,
+        asset_url: localUrl,
+      }));
+      setToastMessage('File PNG frame berhasil dimuat ke kanvas editor!');
+      setIsSavedToast(true);
+      setTimeout(() => setIsSavedToast(false), 3000);
+    }
   };
+
+  // Save Draft to API
+  const handleSaveDraft = async () => {
+    try {
+      setIsSaving(true);
+      if (frameId) {
+        await fetch(`/api/frames/${frameId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slots, status: 'DRAFT' }),
+        });
+      }
+      setToastMessage('Draf koordinat slot berhasil disimpan!');
+      setIsSavedToast(true);
+      setTimeout(() => setIsSavedToast(false), 2500);
+    } catch (err) {
+      console.error('Error saving slots:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Publish Version
+  const handlePublish = async () => {
+    try {
+      setIsSaving(true);
+      if (frameId) {
+        await fetch(`/api/frames/${frameId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slots, status: 'PUBLISHED' }),
+        });
+      }
+      setFrameData((prev) => ({ ...prev, status: 'PUBLISHED' }));
+      setIsPublishModalOpen(false);
+      setToastMessage('Versi frame berhasil diterbitkan!');
+      setIsSavedToast(true);
+      setTimeout(() => setIsSavedToast(false), 3000);
+    } catch (err) {
+      console.error('Error publishing frame:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const isStrip = frameData.dimensions === '2x6';
 
   return (
     <div className="h-screen flex flex-col bg-canvas text-content-primary select-none overflow-hidden">
@@ -124,16 +254,38 @@ export default function FrameEditorPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xs font-bold font-headline text-content-primary">
-                Retro Pastel 4-Grid v2.1
+                {frameData.name}
               </h1>
-              <Badge variant="warning" dot>DRAFT</Badge>
+              <Badge variant={frameData.status === 'PUBLISHED' ? 'brand' : 'warning'} dot>
+                {frameData.status}
+              </Badge>
             </div>
-            <p className="text-[10px] text-content-secondary font-mono">Format: 2x6 Strip (1200 x 3600 px)</p>
+            <p className="text-[10px] text-content-secondary font-mono">
+              Format: {frameData.dimensions} ({isStrip ? '1200 x 3600 px' : '1800 x 1200 px'})
+            </p>
           </div>
         </div>
 
         {/* Toolbar Center: Zoom & Actions */}
         <div className="flex items-center gap-2">
+          {/* Hidden file input to replace PNG */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/png,.png"
+            className="hidden"
+            onChange={handleDirectPngUpload}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            className="text-xs gap-1"
+          >
+            <UploadCloud className="w-3.5 h-3.5" />
+            {frameData.asset_url ? 'Ganti PNG Master' : 'Unggah File PNG'}
+          </Button>
+
           <div className="flex items-center gap-1 bg-canvas border border-border rounded p-0.5 text-xs">
             <button
               onClick={() => setZoomLevel((z) => Math.max(50, z - 10))}
@@ -152,31 +304,36 @@ export default function FrameEditorPage() {
             </button>
           </div>
 
-          <button
+          <Button
+            variant={isPreviewActive ? 'primary' : 'secondary'}
+            size="sm"
             onClick={() => setIsPreviewActive(!isPreviewActive)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
-              isPreviewActive
-                ? 'bg-content-primary text-white border-content-primary'
-                : 'bg-surface text-content-secondary border-border hover:text-content-primary hover:bg-canvas'
-            }`}
+            className="text-xs gap-1.5"
           >
             <Eye className="w-3.5 h-3.5" />
-            {isPreviewActive ? 'Mode Edit' : 'Simulasi Foto'}
-          </button>
+            {isPreviewActive ? 'Keluar Mode Simulasi' : 'Simulasi Foto'}
+          </Button>
         </div>
 
         {/* Toolbar Right: Save & Publish */}
         <div className="flex items-center gap-2">
-          {isSavedToast && (
-            <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1 animate-in fade-in">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Tersimpan!
-            </span>
-          )}
-          <Button variant="secondary" size="sm" onClick={handleSaveDraft}>
-            <Save className="w-3.5 h-3.5" />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleSaveDraft}
+            disabled={isSaving}
+            className="text-xs gap-1"
+          >
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Simpan Draf
           </Button>
-          <Button size="sm" onClick={() => setIsPublishModalOpen(true)}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsPublishModalOpen(true)}
+            disabled={isSaving}
+            className="text-xs gap-1"
+          >
             <Send className="w-3.5 h-3.5" />
             Terbitkan Versi
           </Button>
@@ -184,10 +341,10 @@ export default function FrameEditorPage() {
       </header>
 
       {/* 2. THREE-PANEL EDITOR WORKSPACE */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* LEFT PANEL: Layer / Photo Slots List */}
-        <div className="w-64 bg-surface border-r border-border flex flex-col justify-between shrink-0 overflow-y-auto">
-          <div className="p-4 space-y-4">
+      <div className="flex-1 flex overflow-hidden">
+        {/* LEFT PANEL: Slot Layers */}
+        <div className="w-64 bg-surface border-r border-border flex flex-col justify-between shrink-0">
+          <div className="p-4 space-y-4 overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-wider text-content-secondary flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" />
@@ -195,7 +352,7 @@ export default function FrameEditorPage() {
               </h2>
               <button
                 onClick={handleAddSlot}
-                className="p-1 rounded bg-canvas hover:bg-canvas-alt text-content-primary text-xs"
+                className="p-1 hover:bg-canvas text-content-secondary hover:text-content-primary rounded transition-colors"
                 title="Tambah Slot Foto Baru"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -246,10 +403,22 @@ export default function FrameEditorPage() {
 
         {/* CENTER CANVAS: Large Visual Frame Viewport */}
         <div className="flex-1 bg-canvas flex items-center justify-center p-8 overflow-auto relative">
+          {isLoading && (
+            <div className="absolute inset-0 bg-canvas/60 z-40 flex items-center justify-center gap-2 text-xs text-content-secondary">
+              <Loader2 className="w-5 h-5 animate-spin text-brand" />
+              Memuat aset frame...
+            </div>
+          )}
+
           {/* Canvas Viewport Frame Container */}
           <div
-            style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
-            className="w-[280px] h-[720px] bg-white rounded-lg shadow-elevation border-2 border-stone-800 relative overflow-hidden transition-transform duration-150"
+            style={{
+              transform: `scale(${zoomLevel / 100})`,
+              transformOrigin: 'center center',
+              width: isStrip ? '280px' : '420px',
+              height: isStrip ? '720px' : '630px',
+            }}
+            className="bg-white rounded-lg shadow-elevation border-2 border-stone-800 relative overflow-hidden transition-transform duration-150 shrink-0"
           >
             {/* Checkerboard transparency background */}
             <div className="absolute inset-0 bg-[linear-gradient(45deg,#eee_25%,transparent_25%),linear-gradient(-45deg,#eee_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#eee_75%),linear-gradient(-45deg,transparent_75%,#eee_75%)] bg-[size:12px_12px] bg-[position:0_0,0_6px,6px_-6px,-6px_0] opacity-40 pointer-events-none" />
@@ -270,7 +439,7 @@ export default function FrameEditorPage() {
                   }}
                   className={`absolute rounded flex items-center justify-center cursor-move transition-all ${
                     isSelected
-                      ? 'border-2 border-brand ring-2 ring-brand-contrast/20 bg-brand/10 shadow-sm z-20'
+                      ? 'border-2 border-brand ring-2 ring-brand-contrast/20 bg-brand/10 shadow-sm z-30'
                       : 'border border-dashed border-stone-400 bg-stone-100/80 hover:border-brand z-10'
                   }`}
                 >
@@ -305,19 +474,29 @@ export default function FrameEditorPage() {
               );
             })}
 
-            {/* Frame Artwork PNG Overlay (Branding Header & Footer) */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-20">
-              <div className="text-center">
-                <span className="font-headline font-extrabold text-[11px] tracking-wider text-stone-900 bg-white/90 px-2 py-0.5 rounded shadow-xs">
-                  POPCUT.ID PHOTOBOOTH
-                </span>
+            {/* Frame Artwork PNG Overlay */}
+            {frameData.asset_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={frameData.asset_url}
+                alt={frameData.name}
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20 select-none"
+              />
+            ) : (
+              /* Simulated Default Frame Overlay if no PNG yet */
+              <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-20">
+                <div className="text-center">
+                  <span className="font-headline font-extrabold text-[11px] tracking-wider text-stone-900 bg-white/90 px-2 py-0.5 rounded shadow-xs">
+                    POPCUT.ID PHOTOBOOTH
+                  </span>
+                </div>
+                <div className="text-center">
+                  <span className="font-mono text-[9px] text-stone-700 bg-white/90 px-2 py-0.5 rounded">
+                    JAKARTA • 2026
+                  </span>
+                </div>
               </div>
-              <div className="text-center">
-                <span className="font-mono text-[9px] text-stone-700 bg-white/90 px-2 py-0.5 rounded">
-                  JAKARTA • 2026
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -375,7 +554,7 @@ export default function FrameEditorPage() {
                     value={selectedSlot.width}
                     onChange={(e) => updateSelectedSlot({ width: Number(e.target.value) })}
                     className="w-full h-8 bg-surface border border-border rounded px-2 text-xs font-mono"
-                    min={10}
+                    min={1}
                     max={100}
                   />
                 </div>
@@ -388,7 +567,7 @@ export default function FrameEditorPage() {
                     value={selectedSlot.height}
                     onChange={(e) => updateSelectedSlot({ height: Number(e.target.value) })}
                     className="w-full h-8 bg-surface border border-border rounded px-2 text-xs font-mono"
-                    min={10}
+                    min={1}
                     max={100}
                   />
                 </div>
@@ -414,7 +593,7 @@ export default function FrameEditorPage() {
                 </label>
                 <select
                   value={selectedSlot.fit_mode}
-                  onChange={(e) => updateSelectedSlot({ fit_mode: e.target.value as any })}
+                  onChange={(e) => updateSelectedSlot({ fit_mode: e.target.value as 'cover' | 'contain' })}
                   className="w-full h-8 bg-surface border border-border rounded px-2 text-xs"
                 >
                   <option value="cover">Cover (Penuhi slot dengan crop proporsional)</option>
@@ -423,48 +602,85 @@ export default function FrameEditorPage() {
               </div>
             </div>
 
-            {/* Quick Presets */}
-            <div className="pt-3 border-t border-border">
-              <span className="block text-[11px] font-semibold text-content-secondary mb-2">
+            <div className="pt-2 border-t border-border space-y-2">
+              <span className="text-[11px] font-semibold text-content-secondary block">
                 Aksi Cepat Penyamaan:
               </span>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   setSlots((prev) =>
-                    prev.map((s) => ({ ...s, width: selectedSlot.width, height: selectedSlot.height }))
+                    prev.map((s) => ({
+                      ...s,
+                      width: selectedSlot.width,
+                      height: selectedSlot.height,
+                    }))
                   );
                 }}
-                className="w-full h-7 bg-canvas hover:bg-canvas-alt border border-border rounded text-[11px] text-content-primary font-medium transition-colors"
+                className="w-full text-xs"
               >
                 Terapkan Ukuran ke Semua Slot
-              </button>
+              </Button>
             </div>
           </div>
 
-          <div className="p-3 border-t border-border bg-canvas/30 text-[11px] text-content-secondary">
+          <div className="p-3 border-t border-border bg-canvas/30 text-[11px] text-content-muted">
             Semua koordinat dikonversi ke DPI 300 saat proses rendering cetak di booth.
           </div>
         </div>
       </div>
 
-      {/* 3. PUBLISH VERSION CONFIRMATION MODAL */}
+      {/* Toast Notification */}
+      {isSavedToast && (
+        <div className="fixed bottom-6 right-6 bg-stone-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-elevation flex items-center gap-2 z-50 animate-in fade-in slide-in-from-bottom-2">
+          <CheckCircle2 className="w-4 h-4 text-brand" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Publish Version Modal */}
       <Modal
         isOpen={isPublishModalOpen}
         onClose={() => setIsPublishModalOpen(false)}
-        title="Terbitkan Versi Frame Baru (Immutable)"
-        description="Versi frame yang dipublikasikan akan dibuatkan checksum SHA-256 dan siap dimasukkan ke dalam rilis konfigurasi booth."
-        confirmLabel="Konfirmasi & Terbitkan"
-        onConfirm={() => {
-          setIsPublishModalOpen(false);
-          window.location.href = '/frames';
-        }}
+        title="Terbitkan Versi Frame Baru"
+        description="Frame yang diterbitkan akan masuk ke draft manifest konfigurasi untuk kemudian didistribusikan ke armada booth."
+        confirmLabel="Ya, Terbitkan Versi"
+        cancelLabel="Batal"
+        onConfirm={handlePublish}
       >
-        <div className="space-y-2 text-xs">
+        <div className="space-y-3 text-xs text-content-secondary">
           <p>
-            Versi baru <strong>v2.1</strong> akan menggantikan versi aktif sebelumnya untuk sesi foto mendatang. Sesi dan print job lama tetap terhubung ke versi sebelumnya.
+            Apakah Anda yakin ingin menerbitkan desain <strong>{frameData.name}</strong> dengan{' '}
+            <strong>{slots.length} slot foto</strong>?
           </p>
+          <div className="p-3 bg-brand-light/30 border border-brand/20 rounded-md space-y-1 text-content-primary">
+            <span className="font-semibold block text-[11px]">Ringkasan Rilis:</span>
+            <ul className="list-disc list-inside text-[11px] space-y-0.5">
+              <li>Format: {frameData.dimensions}</li>
+              <li>Jumlah Slot: {slots.length} pose</li>
+              <li>Status: PUBLISHED</li>
+            </ul>
+          </div>
         </div>
       </Modal>
     </div>
+  );
+}
+
+export default function FrameEditorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen w-screen flex items-center justify-center bg-canvas">
+          <div className="flex items-center gap-2 text-xs text-content-secondary">
+            <Loader2 className="w-5 h-5 animate-spin text-brand" />
+            Memuat Frame Editor...
+          </div>
+        </div>
+      }
+    >
+      <FrameEditorContent />
+    </Suspense>
   );
 }
