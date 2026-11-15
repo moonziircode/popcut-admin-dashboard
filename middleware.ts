@@ -51,16 +51,30 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/webhooks') ||
     pathname.startsWith('/api/frames') ||
     pathname.startsWith('/api/session') ||
+    pathname.startsWith('/api/sessions') ||
     pathname.startsWith('/api/transaction') ||
+    pathname.startsWith('/api/transactions') ||
     pathname.startsWith('/api/print-job') ||
+    pathname.startsWith('/api/print-jobs') ||
     pathname.startsWith('/api/gallery') ||
+    pathname.startsWith('/api/galleries') ||
     pathname.startsWith('/api/voucher') ||
     pathname.startsWith('/api/ticket') ||
+    pathname.startsWith('/api/tickets') ||
     pathname.startsWith('/api/events') ||
+    pathname.startsWith('/api/packages') ||
+    pathname.startsWith('/api/promotions') ||
+    pathname.startsWith('/api/storage') ||
     pathname.startsWith('/api/payment');
 
-  // If user is not authenticated and trying to access protected dashboard route:
+  // If user is not authenticated:
   if (!isAuthenticated && !isAuthPage && !isOfflinePage && !isPublicApi) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Autentikasi sesi atau token API diperlukan.' },
+        { status: 401 }
+      );
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     if (pathname !== '/') {

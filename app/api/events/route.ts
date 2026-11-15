@@ -186,6 +186,8 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+export const PATCH = PUT;
+
 export async function DELETE(req: NextRequest) {
   try {
     const supabase = createAdminClient();
