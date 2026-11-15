@@ -45,6 +45,31 @@ export async function GET(req: NextRequest) {
       .from('frame_slots')
       .select('*');
 
+    // 4. Retrieve active promotions and codes from Supabase
+    const { data: dbPromos } = await supabase
+      .from('promotions')
+      .select('*, promotion_codes(*)')
+      .eq('is_active', true)
+      .eq('is_archived', false);
+
+    const mappedPromotions = (dbPromos || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      discount_type: p.discount_type,
+      discount_value: Number(p.discount_value),
+      start_date: p.start_date,
+      end_date: p.end_date,
+      total_usage_limit: p.total_usage_limit,
+      per_customer_limit: p.per_customer_limit || 1,
+      min_purchase: Number(p.min_purchase || 0),
+      allow_stacking: Boolean(p.allow_stacking),
+      is_active: Boolean(p.is_active),
+      is_archived: Boolean(p.is_archived),
+      created_at: p.created_at,
+      updated_at: p.updated_at,
+      promotion_codes: p.promotion_codes || [],
+    }));
+
     // Filter packages and frames for active event
     let eventPackages = dbPackages || [];
     if (activeEvent && activeEvent.allowed_package_ids && activeEvent.allowed_package_ids.length > 0) {
@@ -157,7 +182,7 @@ export async function GET(req: NextRequest) {
       },
       frame_categories: dbCategories || [],
       frames: mappedFrames,
-      promotions: [],
+      promotions: mappedPromotions,
       kiosk_settings: {
         welcome_title: eventInfo.event_name,
         idle_timeout_seconds: 60,

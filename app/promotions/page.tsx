@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Tag,
   Ticket,
@@ -13,6 +13,9 @@ import {
   XCircle,
   Clock,
   Sparkles,
+  RefreshCw,
+  Power,
+  Trash2,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -21,7 +24,6 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { formatRupiah, formatDateId } from '@/lib/utils';
-import { initialPackages } from '@/lib/data/mock-data';
 
 interface PromotionItem {
   id: string;
@@ -43,10 +45,14 @@ interface PrepaidBatchItem {
   available_quantity: number;
   used_quantity: number;
   valid_until: string;
+  tickets?: { id: string; ticket_code: string; status: string }[];
 }
 
 export default function PromotionsPage() {
   const [activeTab, setActiveTab] = useState<'vouchers' | 'tickets'>('vouchers');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // Vouchers state
   const [promotions, setPromotions] = useState<PromotionItem[]>([]);
@@ -67,36 +73,168 @@ export default function PromotionsPage() {
   const [batchName, setBatchName] = useState('');
   const [ticketQuantity, setTicketQuantity] = useState<number>(25);
 
-  const handleCreateVoucher = () => {
-    if (!promoName.trim() || !promoCode.trim()) return;
-    const newPromo: PromotionItem = {
-      id: `p-${Date.now()}`,
-      name: promoName,
-      code: promoCode.toUpperCase(),
-      discount_type: discountType,
-      discount_value: Number(discountValue),
-      usage_count: 0,
-      max_uses: Number(maxUses),
-      valid_until: '2026-12-31T23:59:59Z',
-      is_active: true,
-    };
-    setPromotions([newPromo, ...promotions]);
-    setIsVoucherModalOpen(false);
+  // 1. Fetch Promos and Batches from Supabase API
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch vouchers
+      const resPromos = await fetch('/api/promotions');
+      const promoJson = await resPromos.json();
+      if (promoJson.success && Array.isArray(promoJson.promotions)) {
+        const formatted: PromotionItem[] = promoJson.promotions.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          code: p.code || (p.promotion_codes && p.promotion_codes[0]?.code) || 'POPCUT',
+          discount_type: p.discount_type,
+          discount_value: Number(p.discount_value),
+          usage_count: Number(p.usage_count) || 0,
+          max_uses: Number(p.max_uses) || 100,
+          valid_until: p.valid_until || p.end_date,
+          is_active: Boolean(p.is_active),
+        }));
+        setPromotions(formatted);
+      }
+
+      // Fetch ticket batches
+      const resBatches = await fetch('/api/tickets');
+      const batchJson = await resBatches.json();
+      if (batchJson.success && Array.isArray(batchJson.batches)) {
+        const formattedBatches: PrepaidBatchItem[] = batchJson.batches.map((b: any) => {
+          const tickets = b.prepaid_tickets || [];
+          const used = tickets.filter((t: any) => t.status === 'CLAIMED' || t.status === 'USED').length;
+          const available = tickets.filter((t: any) => t.status === 'AVAILABLE' || t.status === 'ACTIVE').length;
+          const pkgName = b.packages?.name ? `${b.packages.name} (Rp${formatRupiah(b.packages.price)})` : 'Paket Photobooth';
+
+          return {
+            id: b.id,
+            batch_name: b.batch_name,
+            package_name: pkgName,
+            total_quantity: b.total_quantity,
+            available_quantity: available,
+            used_quantity: used,
+            valid_until: b.valid_until,
+            tickets: tickets,
+          };
+        });
+        setBatches(formattedBatches);
+      }
+    } catch (err) {
+      console.error('Failed to load promotions & tickets:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleCreateTicketBatch = () => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // 2. Create Voucher Handler
+  const handleCreateVoucher = async () => {
+    if (!promoName.trim() || !promoCode.trim()) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/promotions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: promoName.trim(),
+          code: promoCode.trim().toUpperCase(),
+          discount_type: discountType,
+          discount_value: discountType === 'FREE_100' ? 0 : Number(discountValue),
+          max_uses: Number(maxUses),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsVoucherModalOpen(false);
+        setPromoName('');
+        setPromoCode('');
+        await fetchData();
+      } else {
+        alert(data.message || 'Gagal menyimpan voucher ke database Supabase.');
+      }
+    } catch (err: any) {
+      alert(`Terjadi error: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 3. Toggle Voucher Active/Inactive
+  const handleToggleVoucher = async (id: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch('/api/promotions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          is_active: !currentStatus,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPromotions(prev =>
+          prev.map(p => (p.id === id ? { ...p, is_active: !currentStatus } : p))
+        );
+      } else {
+        alert(data.message || 'Gagal memperbarui status.');
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // 4. Create Ticket Batch Handler
+  const handleCreateTicketBatch = async () => {
     if (!batchName.trim()) return;
-    const newBatch: PrepaidBatchItem = {
-      id: `pb-${Date.now()}`,
-      batch_name: batchName,
-      package_name: 'Regular Duo (Rp35.000)',
-      total_quantity: ticketQuantity,
-      available_quantity: ticketQuantity,
-      used_quantity: 0,
-      valid_until: '2026-12-31T23:59:59Z',
-    };
-    setBatches([newBatch, ...batches]);
-    setIsTicketModalOpen(false);
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batch_name: batchName.trim(),
+          total_quantity: Number(ticketQuantity),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsTicketModalOpen(false);
+        setBatchName('');
+        await fetchData();
+      } else {
+        alert(data.message || 'Gagal membuat batch tiket di Supabase.');
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 5. Export Tickets CSV
+  const handleExportCSV = (batch: PrepaidBatchItem) => {
+    if (!batch.tickets || batch.tickets.length === 0) {
+      alert('Tidak ada tiket yang dapat diekspor.');
+      return;
+    }
+    const header = 'Kode Tiket,Status\n';
+    const rows = batch.tickets.map(t => `${t.ticket_code},${t.status}`).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${batch.batch_name.replace(/\s+/g, '_')}_tickets.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCode(text);
+    setTimeout(() => setCopiedCode(null), 2000);
   };
 
   return (
@@ -112,11 +250,21 @@ export default function PromotionsPage() {
               Promosi & Tiket Prabayar
             </h2>
             <p className="text-xs text-content-secondary mt-0.5">
-              Kelola voucher potongan harga, voucher gratis 100%, serta pembuatan batch tiket prabayar untuk event & korporat.
+              Kelola voucher potongan harga, voucher gratis 100%, serta pembuatan batch tiket prabayar yang tersimpan langsung di Supabase.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={fetchData}
+              disabled={isLoading}
+              className="gap-1.5 text-xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
             {activeTab === 'vouchers' ? (
               <Button size="sm" onClick={() => setIsVoucherModalOpen(true)}>
                 <Plus className="w-3.5 h-3.5" />
@@ -150,7 +298,7 @@ export default function PromotionsPage() {
               activeTab === 'tickets' ? 'text-content-primary' : 'text-content-secondary hover:text-content-primary'
             }`}
           >
-            Batch Tiket Prabayar (Prepaid Tickets)
+            Batch Tiket Prabayar ({batches.length})
             {activeTab === 'tickets' && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand" />
             )}
@@ -170,26 +318,48 @@ export default function PromotionsPage() {
                     <th className="py-3 px-4">Nilai Potongan</th>
                     <th className="py-3 px-4">Kuota Terpakai</th>
                     <th className="py-3 px-4">Berlaku Sampai</th>
-                    <th className="py-3 px-4 text-right">Status</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {promotions.length === 0 ? (
+                  {isLoading ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-content-muted text-xs">
-                        Belum ada kode voucher aktif. Klik tombol di atas untuk membuat voucher baru.
+                      <td colSpan={8} className="py-12 text-center text-content-muted text-xs">
+                        <div className="flex items-center justify-center gap-2">
+                          <RefreshCw className="w-4 h-4 animate-spin text-brand" />
+                          <span>Memuat daftar voucher dari Supabase...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : promotions.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-content-muted text-xs">
+                        Belum ada kode voucher aktif di Supabase. Klik tombol di atas untuk membuat voucher baru.
                       </td>
                     </tr>
                   ) : (
                     promotions.map((p) => (
-                      <tr key={p.id} className="hover:bg-canvas/30 transition-colors">
+                      <tr key={`${p.id}-${p.code}`} className="hover:bg-canvas/30 transition-colors">
                         <td className="py-3.5 px-4 font-semibold text-content-primary">
                           {p.name}
                         </td>
                         <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
-                          <span className="bg-canvas border border-border px-2 py-0.5 rounded">
-                            {p.code}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-canvas border border-border px-2 py-0.5 rounded">
+                              {p.code}
+                            </span>
+                            <button
+                              onClick={() => copyToClipboard(p.code)}
+                              className="text-content-muted hover:text-content-primary p-0.5"
+                              title="Salin Kode"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                            {copiedCode === p.code && (
+                              <span className="text-[10px] text-emerald-600 font-sans">Tersalin!</span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 text-content-secondary">
                           {p.discount_type === 'FREE_100'
@@ -203,7 +373,7 @@ export default function PromotionsPage() {
                             ? 'Gratis Sesi'
                             : p.discount_type === 'PERCENTAGE'
                             ? `${p.discount_value}%`
-                            : formatRupiah(p.discount_value)}
+                            : `Rp${formatRupiah(p.discount_value)}`}
                         </td>
                         <td className="py-3.5 px-4 font-mono">
                           <span className="text-content-primary font-semibold">{p.usage_count}</span>
@@ -212,10 +382,21 @@ export default function PromotionsPage() {
                         <td className="py-3.5 px-4 text-content-secondary text-[11px]">
                           {formatDateId(p.valid_until)}
                         </td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-3.5 px-4 text-center">
                           <Badge variant={p.is_active ? 'success' : 'neutral'} dot>
                             {p.is_active ? 'Aktif' : 'Nonaktif'}
                           </Badge>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Button
+                            variant={p.is_active ? 'secondary' : 'primary'}
+                            size="sm"
+                            className="text-xs gap-1"
+                            onClick={() => handleToggleVoucher(p.id, p.is_active)}
+                          >
+                            <Power className="w-3 h-3" />
+                            {p.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                          </Button>
                         </td>
                       </tr>
                     ))
@@ -244,10 +425,19 @@ export default function PromotionsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {batches.length === 0 ? (
+                    {isLoading ? (
                       <tr>
                         <td colSpan={7} className="py-12 text-center text-content-muted text-xs">
-                          Belum ada batch tiket prabayar yang diterbitkan.
+                          <div className="flex items-center justify-center gap-2">
+                            <RefreshCw className="w-4 h-4 animate-spin text-brand" />
+                            <span>Memuat batch tiket dari Supabase...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : batches.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-content-muted text-xs">
+                          Belum ada batch tiket prabayar yang diterbitkan di Supabase.
                         </td>
                       </tr>
                     ) : (
@@ -272,7 +462,12 @@ export default function PromotionsPage() {
                             {formatDateId(b.valid_until)}
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            <Button variant="secondary" size="sm" className="gap-1 text-xs">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="gap-1 text-xs"
+                              onClick={() => handleExportCSV(b)}
+                            >
                               <Download className="w-3 h-3" />
                               Ekspor CSV
                             </Button>
@@ -292,8 +487,8 @@ export default function PromotionsPage() {
           isOpen={isVoucherModalOpen}
           onClose={() => setIsVoucherModalOpen(false)}
           title="Buat Kode Voucher Promosi"
-          description="Kode voucher divalidasi secara atomik di Supabase PostgreSQL untuk mencegah double-claim."
-          confirmLabel="Simpan & Rilis Voucher"
+          description="Kode voucher akan disimpan langsung ke database Supabase dan langsung aktif untuk Customer Application."
+          confirmLabel={isSaving ? "Menyimpan ke Supabase..." : "Simpan & Rilis Voucher"}
           onConfirm={handleCreateVoucher}
         >
           <div className="space-y-4">
@@ -349,8 +544,8 @@ export default function PromotionsPage() {
           isOpen={isTicketModalOpen}
           onClose={() => setIsTicketModalOpen(false)}
           title="Buat Batch Tiket Prabayar"
-          description="Tiket prabayar dapat dibagikan kepada klien event atau rekan korporat untuk langsung dipakai di layar kiosk."
-          confirmLabel="Hasilkan Tiket & Batch"
+          description="Tiket prabayar disimpan ke Supabase dan dapat dibagikan kepada klien event untuk langsung dipakai di layar kiosk."
+          confirmLabel={isSaving ? "Membuat di Supabase..." : "Hasilkan Tiket & Batch"}
           onConfirm={handleCreateTicketBatch}
         >
           <div className="space-y-4">
