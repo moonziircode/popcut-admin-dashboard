@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Printer,
@@ -29,6 +29,25 @@ export default function PrintJobsPage() {
   const [selectedJob, setSelectedJob] = useState<PrintJob | null>(null);
   const [reprintQuantity, setReprintQuantity] = useState<number>(1);
   const [reprintReason, setReprintReason] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPrintJobs = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/print-jobs');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.print_jobs)) {
+          setPrintJobs(data.print_jobs);
+        }
+      } catch (err) {
+        console.error('Failed to load print jobs:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPrintJobs();
+  }, []);
 
   const handleOpenReprint = (job: PrintJob) => {
     setSelectedJob(job);

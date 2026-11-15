@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Image as ImageIcon,
@@ -37,6 +37,25 @@ export default function GalleriesPage() {
   const [galleries, setGalleries] = useState<GalleryItem[]>([]);
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchGalleries = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/galleries');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.galleries)) {
+          setGalleries(data.galleries);
+        }
+      } catch (err) {
+        console.error('Failed to load galleries:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchGalleries();
+  }, []);
 
   const handleCopyLink = (token: string) => {
     navigator.clipboard.writeText(`https://popcut.id/g/${token}`);
