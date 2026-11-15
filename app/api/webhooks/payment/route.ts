@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyMidtransSignature } from '@/lib/services/midtrans';
+import { verifyMidtransSignatureAsync } from '@/lib/services/midtrans';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,22 +24,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Determine if sandbox or production based on order_id or env
-    const isSandboxKey = signature_key && verifyMidtransSignature({
+    // Determine if sandbox or production based on signature verification
+    const isSandboxKey = signature_key && (await verifyMidtransSignatureAsync({
       orderId: order_id,
       statusCode: status_code,
       grossAmount: gross_amount,
       signatureKey: signature_key,
       isProduction: false,
-    });
+    }));
 
-    const isProdKey = !isSandboxKey && verifyMidtransSignature({
+    const isProdKey = !isSandboxKey && (await verifyMidtransSignatureAsync({
       orderId: order_id,
       statusCode: status_code,
       grossAmount: gross_amount,
       signatureKey: signature_key,
       isProduction: true,
-    });
+    }));
 
     const isSignatureValid = isSandboxKey || isProdKey;
 

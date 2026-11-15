@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export interface MidtransConfig {
   serverKey: string;
@@ -33,6 +34,53 @@ export interface SnapTransactionResult {
   order_id: string;
 }
 
+export async function getMidtransConfigAsync(forceSandbox?: boolean): Promise<MidtransConfig> {
+  let isProduction = forceSandbox !== undefined ? !forceSandbox : (process.env.MIDTRANS_IS_PRODUCTION === 'true');
+  let serverKey = isProduction
+    ? (process.env.MIDTRANS_SERVER_KEY || '')
+    : (process.env.MIDTRANS_SANDBOX_SERVER_KEY || process.env.MIDTRANS_SERVER_KEY || '');
+  let clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY || 'Mid-client-2aA4MHqiqjjWz7V8';
+  let merchantName = process.env.MIDTRANS_MERCHANT_NAME || 'Popcut.id';
+
+  // Read from Supabase app_settings table if env is not configured
+  if (!serverKey) {
+    try {
+      const admin = createAdminClient();
+      const { data } = await admin
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'midtrans_config')
+        .single();
+
+      if (data?.value) {
+        if (forceSandbox === undefined && data.value.is_production !== undefined) {
+          isProduction = Boolean(data.value.is_production);
+        }
+        serverKey = isProduction
+          ? (data.value.production_server_key || '')
+          : (data.value.sandbox_server_key || data.value.production_server_key || '');
+        if (data.value.client_key) clientKey = data.value.client_key;
+        if (data.value.merchant_name) merchantName = data.value.merchant_name;
+      }
+    } catch (e) {
+      // Ignore database errors and fall back to defaults
+    }
+  }
+
+  return {
+    serverKey,
+    clientKey,
+    isProduction,
+    merchantName,
+    snapBaseUrl: isProduction
+      ? 'https://app.midtrans.com/snap/v1'
+      : 'https://app.sandbox.midtrans.com/snap/v1',
+    apiBaseUrl: isProduction
+      ? 'https://api.midtrans.com/v2'
+      : 'https://api.sandbox.midtrans.com/v2',
+  };
+}
+
 export function getMidtransConfig(forceSandbox?: boolean): MidtransConfig {
   const isEnvProd = process.env.MIDTRANS_IS_PRODUCTION === 'true';
   const isProduction = forceSandbox !== undefined ? !forceSandbox : isEnvProd;
@@ -62,7 +110,7 @@ export async function createSnapTransaction(
   params: CreateSnapTransactionParams,
   forceSandbox?: boolean
 ): Promise<SnapTransactionResult> {
-  const config = getMidtransConfig(forceSandbox);
+  const config = await getMidtransConfigAsync(forceSandbox);
   const authString = Buffer.from(`${config.serverKey}:`).toString('base64');
 
   const payload = {
@@ -108,6 +156,27 @@ export async function createSnapTransaction(
   };
 }
 
+export async function verifyMidtransSignatureAsync(params: {
+  orderId: string;
+  statusCode: string;
+  grossAmount: string | number;
+  signatureKey: string;
+  isProduction?: boolean;
+}): Promise<boolean> {
+  const config = await getMidtransConfigAsync(params.isProduction === false);
+  const formattedAmount =
+    typeof params.grossAmount === 'number'
+      ? params.grossAmount.toFixed(2)
+      : params.grossAmount.includes('.')
+      ? params.grossAmount
+      : `${params.grossAmount}.00`;
+
+  const rawString = `${params.orderId}${params.statusCode}${formattedAmount}${config.serverKey}`;
+  const computedHash = crypto.createHash('sha512').update(rawString).digest('hex');
+
+  return computedHash.toLowerCase() === params.signatureKey.toLowerCase();
+}
+
 export function verifyMidtransSignature(params: {
   orderId: string;
   statusCode: string;
@@ -130,7 +199,7 @@ export function verifyMidtransSignature(params: {
 }
 
 export async function checkTransactionStatus(orderId: string, isProduction?: boolean) {
-  const config = getMidtransConfig(isProduction === false);
+  const config = await getMidtransConfigAsync(isProduction === false);
   const authString = Buffer.from(`${config.serverKey}:`).toString('base64');
 
   const response = await fetch(`${config.apiBaseUrl}/${orderId}/status`, {
@@ -150,11 +219,19 @@ export async function checkTransactionStatus(orderId: string, isProduction?: boo
 }
 
 export async function testMidtransPing(isProduction?: boolean) {
-  const config = getMidtransConfig(isProduction === false);
+  const config = await getMidtransConfigAsync(isProduction === false);
+  if (!config.serverKey) {
+    return {
+      success: false,
+      environment: config.isProduction ? 'PRODUCTION' : 'SANDBOX',
+      message: 'Server Key Midtrans belum dikonfigurasi.',
+    };
+  }
+
   const authString = Buffer.from(`${config.serverKey}:`).toString('base64');
 
   try {
-    // Try checking dummy transaction status to verify authentication
+    // Check dummy transaction status to verify authentication
     const response = await fetch(`${config.apiBaseUrl}/popcut-ping-check/status`, {
       method: 'GET',
       headers: {
@@ -163,7 +240,6 @@ export async function testMidtransPing(isProduction?: boolean) {
       },
     });
 
-    // Midtrans returns 404 for non-existent order, but 401 for bad auth
     if (response.status === 200 || response.status === 404) {
       return {
         success: true,
@@ -180,7 +256,7 @@ export async function testMidtransPing(isProduction?: boolean) {
         success: false,
         environment: config.isProduction ? 'PRODUCTION' : 'SANDBOX',
         serverKeyMasked: `${config.serverKey.slice(0, 10)}...${config.serverKey.slice(-4)}`,
-        message: 'Kredensial Server Key ditolak oleh Midtrans (HTTP 401 Unauthorized). Pastikan IP Whitelist atau status Go Live akun aktif.',
+        message: 'Kredensial Server Key ditolak oleh Midtrans (HTTP 401 Unauthorized). Pastikan status Go Live atau IP Whitelist di Midtrans Dashboard telah aktif.',
       };
     }
 
