@@ -87,6 +87,23 @@ export default function FramesPage() {
     fetchFrames();
   }, []);
 
+  // Listen for Clipboard Paste (Cmd+V / Ctrl+V) when Upload Modal is open
+  useEffect(() => {
+    if (!isUploadModalOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+        const file = e.clipboardData.files[0];
+        if (file.type.startsWith('image/')) {
+          handleFileChange(file);
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isUploadModalOpen]);
+
   // Handle file selection and analyze alpha transparency
   const handleFileChange = (file: File | null) => {
     setUploadError(null);
@@ -99,9 +116,13 @@ export default function FramesPage() {
       return;
     }
 
-    // Validate MIME type / extension
-    if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
-      setUploadError('Hanya file gambar PNG yang didukung. Harap pilih file berekstensi .png');
+    // Validate MIME type / extension (Support PNG, JPG, JPEG, WEBP)
+    const validExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
+    const hasValidExt = validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext));
+    const isImageMime = file.type.startsWith('image/');
+
+    if (!isImageMime && !hasValidExt) {
+      setUploadError('Format tidak didukung. Harap pilih file gambar (PNG, JPG, atau WEBP).');
       return;
     }
 
@@ -393,40 +414,53 @@ export default function FramesPage() {
               </div>
             )}
 
-            {/* Hidden native file input */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/png,.png"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  handleFileChange(e.target.files[0]);
-                }
-              }}
-            />
-
-            {/* Drag & Drop Zone */}
+            {/* Drag & Drop Zone with Direct Native File Input Overlay */}
             {!selectedFile ? (
-              <div
-                onClick={() => fileInputRef.current?.click()}
+              <label
+                htmlFor="frame-file-input"
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${
+                className={`relative block border-2 border-dashed rounded-lg p-7 text-center cursor-pointer transition-all overflow-hidden ${
                   isDragging
-                    ? 'border-brand bg-brand-light/30 scale-[1.01]'
+                    ? 'border-brand bg-brand-light/40 scale-[1.01]'
                     : 'border-border hover:border-brand bg-canvas/30 hover:bg-canvas/60'
                 }`}
               >
-                <UploadCloud className="w-9 h-9 text-content-muted mx-auto mb-2 animate-bounce-subtle" />
-                <p className="text-xs font-semibold text-content-primary">
-                  Klik untuk memilih file PNG atau seret file ke area ini
-                </p>
-                <p className="text-[11px] text-content-secondary mt-1">
-                  Format wajib: PNG transparan (Maks. 25 MB)
-                </p>
-              </div>
+                {/* Native Invisible File Input covering the entire drop zone */}
+                <input
+                  id="frame-file-input"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                  onClick={(e) => {
+                    (e.target as HTMLInputElement).value = '';
+                  }}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleFileChange(e.target.files[0]);
+                    }
+                  }}
+                />
+
+                <div className="relative z-10 pointer-events-none flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-surface border border-border flex items-center justify-center mb-3 shadow-2xs">
+                    <UploadCloud className="w-6 h-6 text-brand-dark animate-bounce-subtle" />
+                  </div>
+                  <p className="text-xs font-bold text-content-primary">
+                    Tarik & letakkan file PNG di sini, atau klik untuk memilih
+                  </p>
+                  <p className="text-[11px] text-content-secondary mt-1">
+                    Mendukung PNG transparan, PNG solid Canva, JPG & WEBP (Maks. 25 MB)
+                  </p>
+
+                  <span className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-surface hover:bg-canvas border border-border rounded-md text-xs font-semibold text-content-primary shadow-xs">
+                    <UploadCloud className="w-3.5 h-3.5 text-brand-dark" />
+                    Pilih File dari Komputer
+                  </span>
+                </div>
+              </label>
             ) : (
               /* Selected File Preview Box with Smart Transparency Analysis */
               <div className="space-y-3">

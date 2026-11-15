@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { FrameSlot } from '@/types/database.types';
-import { DetectedSlot } from '@/lib/utils/image-transparency';
+import { DetectedSlot, analyzeImageAlpha } from '@/lib/utils/image-transparency';
 import { SmartTransparencyModal } from '@/components/frames/SmartTransparencyModal';
 
 function FrameEditorContent() {
@@ -178,24 +178,66 @@ function FrameEditorContent() {
     setSelectedSlotId(remaining[0].id);
   };
 
+  // Process an uploaded or dropped image file in Editor
+  const processEditorFile = (file: File) => {
+    const validExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
+    const hasValidExt = validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext));
+    if (!file.type.startsWith('image/') && !hasValidExt) {
+      alert('File harus berupa gambar (PNG, JPG, atau WEBP).');
+      return;
+    }
+
+    const localUrl = URL.createObjectURL(file);
+    setFrameData((prev) => ({
+      ...prev,
+      asset_url: localUrl,
+    }));
+    setToastMessage('File gambar berhasil dimuat ke kanvas editor!');
+    setIsSavedToast(true);
+    setTimeout(() => setIsSavedToast(false), 3000);
+
+    // If image is non-transparent, automatically open smart transparency modal
+    const img = new Image();
+    img.src = localUrl;
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const stats = analyzeImageAlpha(ctx, img.naturalWidth, img.naturalHeight);
+          if (!stats.hasAlpha) {
+            setIsSmartModalOpen(true);
+          }
+        }
+      } catch (e) {
+        console.warn('Alpha check skipped', e);
+      }
+    };
+  };
+
   // Replace or upload local PNG preview directly
   const handleDirectPngUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
-        alert('File harus berformat PNG transparan.');
-        return;
-      }
-      const localUrl = URL.createObjectURL(file);
-      setFrameData((prev) => ({
-        ...prev,
-        asset_url: localUrl,
-      }));
-      setToastMessage('File PNG frame berhasil dimuat ke kanvas editor!');
-      setIsSavedToast(true);
-      setTimeout(() => setIsSavedToast(false), 3000);
+      processEditorFile(e.target.files[0]);
     }
   };
+
+  // Listen for Clipboard Paste in Editor
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+        const file = e.clipboardData.files[0];
+        if (file.type.startsWith('image/')) {
+          processEditorFile(file);
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, []);
 
   // Callback when Smart Transparency is applied in Editor
   const handleSmartApplyInEditor = (
@@ -305,23 +347,28 @@ function FrameEditorContent() {
 
         {/* Toolbar Center: Zoom & Actions */}
         <div className="flex items-center gap-2">
-          {/* Hidden file input to replace PNG */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/png,.png"
-            className="hidden"
-            onChange={handleDirectPngUpload}
-          />
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            className="text-xs gap-1"
-          >
-            <UploadCloud className="w-3.5 h-3.5" />
-            {frameData.asset_url ? 'Ganti PNG Master' : 'Unggah File PNG'}
-          </Button>
+          {/* Native label file input button */}
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              onClick={(e) => {
+                (e.target as HTMLInputElement).value = '';
+              }}
+              onChange={handleDirectPngUpload}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="text-xs gap-1 pointer-events-none"
+            >
+              <UploadCloud className="w-3.5 h-3.5" />
+              {frameData.asset_url ? 'Ganti PNG Master' : 'Unggah File PNG'}
+            </Button>
+          </label>
 
           {frameData.asset_url && (
             <Button
@@ -452,7 +499,16 @@ function FrameEditorContent() {
         </div>
 
         {/* CENTER CANVAS: Large Visual Frame Viewport */}
-        <div className="flex-1 bg-canvas flex items-center justify-center p-8 overflow-auto relative">
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+              processEditorFile(e.dataTransfer.files[0]);
+            }
+          }}
+          className="flex-1 bg-canvas flex items-center justify-center p-8 overflow-auto relative"
+        >
           {isLoading && (
             <div className="absolute inset-0 bg-canvas/60 z-40 flex items-center justify-center gap-2 text-xs text-content-secondary">
               <Loader2 className="w-5 h-5 animate-spin text-brand" />
