@@ -53,7 +53,9 @@ export default function FramesPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [newFrameName, setNewFrameName] = useState('');
   const [newFrameCategory, setNewFrameCategory] = useState('classic');
-  const [newFrameDimensions, setNewFrameDimensions] = useState<'2x6' | '4x6'>('2x6');
+  const [newFrameDimensions, setNewFrameDimensions] = useState<'4x6'>('4x6');
+  const [orientation, setOrientation] = useState<'PORTRAIT' | 'LANDSCAPE'>('PORTRAIT');
+  const [fileDimensions, setFileDimensions] = useState<{ width: number; height: number } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -104,11 +106,12 @@ export default function FramesPage() {
     return () => window.removeEventListener('paste', handlePaste);
   }, [isUploadModalOpen]);
 
-  // Handle file selection and analyze alpha transparency
+  // Handle file selection and analyze alpha transparency + 4R standard validation
   const handleFileChange = (file: File | null) => {
     setUploadError(null);
     setHasAlpha(null);
     setPendingSlots([]);
+    setFileDimensions(null);
 
     if (!file) {
       setSelectedFile(null);
@@ -132,33 +135,58 @@ export default function FramesPage() {
       return;
     }
 
-    setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
 
-    // Auto-populate name if empty
-    if (!newFrameName) {
-      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-      setNewFrameName(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
-    }
-
-    // Check Alpha Transparency in the background
+    // Verify 4R standard (2:3 Portrait or 3:2 Landscape) and Check Alpha Transparency
     const img = new Image();
     img.src = objectUrl;
     img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      setFileDimensions({ width: w, height: h });
+
+      const ratio = w / h;
+      const isPortrait = Math.abs(ratio - 2 / 3) <= 0.04;
+      const isLandscape = Math.abs(ratio - 1.5) <= 0.04;
+
+      if (!isPortrait && !isLandscape) {
+        setUploadError(
+          `File tidak sesuai dengan standar rasio 4R (2:3 Portrait atau 3:2 Landscape). Dimensi file Anda: ${w} × ${h} px (rasio ${ratio.toFixed(2)}). Sistem hanya menerima desain berukuran 4R (contoh: 1200 × 1800 px atau 1800 × 1200 px pada 300 DPI).`
+        );
+        setSelectedFile(null);
+        setPreviewUrl(null);
+        return;
+      }
+
+      setOrientation(isLandscape ? 'LANDSCAPE' : 'PORTRAIT');
+      setSelectedFile(file);
+      setPreviewUrl(objectUrl);
+
+      // Auto-populate name if empty
+      if (!newFrameName) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        setNewFrameName(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+      }
+
       try {
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0);
-          const alphaStats = analyzeImageAlpha(ctx, img.naturalWidth, img.naturalHeight);
+          const alphaStats = analyzeImageAlpha(ctx, w, h);
           setHasAlpha(alphaStats.hasAlpha);
         }
       } catch (e) {
         console.warn('Failed to analyze alpha channel:', e);
       }
+    };
+
+    img.onerror = () => {
+      setUploadError('Gagal memproses file gambar. Pastikan file gambar tidak rusak.');
+      setSelectedFile(null);
+      setPreviewUrl(null);
     };
   };
 
@@ -440,8 +468,8 @@ export default function FramesPage() {
         <Modal
           isOpen={isUploadModalOpen}
           onClose={() => !isUploading && setIsUploadModalOpen(false)}
-          title="Unggah Master Frame PNG"
-          description="Pastikan file berekstensi .PNG dengan latar transparan alpha untuk slot foto (disarankan resolusi 1200x3600 px, DPI 300)."
+          title="Unggah Master Frame 4R"
+          description="Semua frame wajib ukuran 4R (1200 × 1800 px Portrait atau 1800 × 1200 px Landscape pada 300 DPI) dengan format file PNG transparan."
           confirmLabel={isUploading ? 'Sedang Mengunggah...' : 'Unggah & Masuk ke Editor'}
           cancelLabel="Batal"
           onConfirm={handleUploadSubmit}
@@ -649,20 +677,29 @@ export default function FramesPage() {
               </select>
             </div>
 
-            {/* Frame Dimensions */}
+            {/* Frame Dimensions: STRICT 4R STANDARD */}
             <div>
               <label className="block text-xs font-semibold text-content-primary mb-1">
-                Ukuran Cetak Kertas Fisik
+                Standar Ukuran Cetak (Wajib 4R)
               </label>
-              <select
-                value={newFrameDimensions}
-                onChange={(e) => setNewFrameDimensions(e.target.value as '2x6' | '4x6')}
-                disabled={isUploading}
-                className="w-full h-9 bg-surface border border-border rounded px-3 text-xs focus:outline-none focus:border-brand"
-              >
-                <option value="2x6">2x6 Inci (Photo Strip Vertikal - 1200 x 3600 px)</option>
-                <option value="4x6">4x6 Inci (Postcard Jumbo - 1800 x 1200 px)</option>
-              </select>
+              <div className="p-3 bg-brand-light/30 border border-brand/40 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-brand-dark">Standar Popcut.id: 4R (4 × 6 Inci)</span>
+                    <Badge variant="brand" className="text-[10px] uppercase font-mono font-bold">
+                      {orientation === 'PORTRAIT' ? '2:3 Portrait' : '3:2 Landscape'}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-content-secondary mt-0.5">
+                    10,16 × 15,24 cm • 300 DPI ({orientation === 'PORTRAIT' ? '1200 × 1800 px' : '1800 × 1200 px'})
+                  </p>
+                  {fileDimensions && (
+                    <p className="text-[10px] text-brand-dark font-mono mt-1 font-semibold">
+                      Dimensi File: {fileDimensions.width} × {fileDimensions.height} px (Proporsional 4R)
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </Modal>

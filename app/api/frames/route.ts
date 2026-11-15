@@ -6,6 +6,13 @@ export async function GET() {
   try {
     const supabase = createAdminClient();
 
+    // Query active frame categories
+    const { data: dbCategories } = await supabase
+      .from('frame_categories')
+      .select('*')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+
     // Query frames with category and current version
     const { data: dbFrames, error } = await supabase
       .from('frames')
@@ -85,6 +92,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       frames: formattedFrames,
+      categories: dbCategories || [],
       source: 'database',
     });
   } catch (err: any) {

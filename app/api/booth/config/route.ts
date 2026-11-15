@@ -25,7 +25,13 @@ export async function GET(req: NextRequest) {
       .eq('is_active', true)
       .order('display_order', { ascending: true });
 
-    // 3. Retrieve frames, versions, and slots from Supabase
+    // 3. Retrieve frames, categories, versions, and slots from Supabase
+    const { data: dbCategories } = await supabase
+      .from('frame_categories')
+      .select('*')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+
     const { data: dbFrames } = await supabase
       .from('frames')
       .select('*')
@@ -73,14 +79,21 @@ export async function GET(req: NextRequest) {
         ? (version.asset_path.startsWith('http') ? version.asset_path : `https://hxefecxvforrrbggmvmm.supabase.co/storage/v1/object/public/frames/${version.asset_path}`)
         : '';
 
+      const cat = (dbCategories || []).find((c) => c.id === f.category_id);
+
       return {
         id: f.id,
         internal_code: f.internal_code || `FRM-${f.id.slice(0, 6)}`,
         name: f.name,
         category_id: f.category_id,
-        dimensions: f.dimensions || '2x6',
-        aspect_ratio: f.aspect_ratio || '1:3',
+        category_slug: cat?.slug || 'classic',
+        category_name: cat?.name || 'Classic',
+        dimensions: '4R',
+        aspect_ratio: f.aspect_ratio || '2:3',
         current_version_id: version?.id || 'v1',
+        preview_url: downloadUrl,
+        asset_path: `frames/${f.id}.png`,
+        checksum_sha256: version?.checksum_sha256 || '',
         is_archived: false,
         created_at: f.created_at || new Date().toISOString(),
         updated_at: f.updated_at || new Date().toISOString(),
@@ -142,6 +155,7 @@ export async function GET(req: NextRequest) {
         quantity_increment: 1,
         max_quantity: 6,
       },
+      frame_categories: dbCategories || [],
       frames: mappedFrames,
       promotions: [],
       kiosk_settings: {

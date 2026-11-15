@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Extract Width, Height & Alpha Channel from IHDR chunk
     let imgWidth = 1200;
-    let imgHeight = dimensions === '4x6' ? 1800 : 3600;
+    let imgHeight = 1800;
     let hasAlpha = true;
 
     if (buffer.length >= 26) {
@@ -65,6 +65,24 @@ export async function POST(request: NextRequest) {
         console.warn('Could not parse PNG IHDR header:', e);
       }
     }
+
+    // 4b. STRICT 4R STANDARD VALIDATION (2:3 Portrait or 3:2 Landscape)
+    const ratio = imgWidth / imgHeight;
+    const isPortrait4R = Math.abs(ratio - 2 / 3) <= 0.04; // e.g. 1200x1800 (0.667)
+    const isLandscape4R = Math.abs(ratio - 1.5) <= 0.04;  // e.g. 1800x1200 (1.500)
+
+    if (!isPortrait4R && !isLandscape4R) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `File tidak sesuai dengan standar rasio 4R (2:3 Portrait atau 3:2 Landscape). Dimensi file terdeteksi: ${imgWidth} × ${imgHeight} px (rasio ${ratio.toFixed(2)}). Sistem hanya menerima desain berukuran 4R (contoh: 1200 × 1800 px atau 1800 × 1200 px pada 300 DPI).`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const frameDimensions = '4x6';
+    const aspectRatio = isLandscape4R ? '3:2' : '2:3';
 
     // 5. Checksum SHA-256
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
@@ -124,8 +142,7 @@ export async function POST(request: NextRequest) {
     const { data: publicUrlData } = supabase.storage.from('frames').getPublicUrl(storagePath);
     const assetUrl = publicUrlData?.publicUrl;
 
-    // 9. Insert Frame into database
-    const aspectRatio = dimensions === '4x6' ? '2:3' : '1:3';
+    // 9. Insert Frame into database (Strict 4R standard)
     const { data: frameRecord, error: frameError } = await supabase
       .from('frames')
       .insert({
@@ -133,7 +150,7 @@ export async function POST(request: NextRequest) {
         internal_code: internalCode,
         name,
         category_id: categoryId,
-        dimensions,
+        dimensions: frameDimensions,
         aspect_ratio: aspectRatio,
         current_version_id: versionId,
         is_archived: false,
@@ -178,18 +195,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 11. Create initial photo slots based on dimension
-    const defaultSlots = dimensions === '4x6'
+    // 11. Create initial 4R photo slots (2-Slot default with 50:50 divider config)
+    const defaultSlots = isLandscape4R
       ? [
-          { slot_index: 1, x_coord: 8, y_coord: 8, width: 40, height: 40 },
-          { slot_index: 2, x_coord: 52, y_coord: 8, width: 40, height: 40 },
-          { slot_index: 3, x_coord: 8, y_coord: 52, width: 40, height: 40 },
-          { slot_index: 4, x_coord: 52, y_coord: 52, width: 40, height: 40 },
+          {
+            slot_index: 1,
+            x_coord: 6,
+            y_coord: 8,
+            width: 41,
+            height: 84,
+            crop_config: { divider_ratio: 0.5, layout_type: '2_slot_horizontal' },
+          },
+          {
+            slot_index: 2,
+            x_coord: 53,
+            y_coord: 8,
+            width: 41,
+            height: 84,
+            crop_config: { divider_ratio: 0.5, layout_type: '2_slot_horizontal' },
+          },
         ]
       : [
-          { slot_index: 1, x_coord: 10, y_coord: 8, width: 80, height: 24 },
-          { slot_index: 2, x_coord: 10, y_coord: 36, width: 80, height: 24 },
-          { slot_index: 3, x_coord: 10, y_coord: 64, width: 80, height: 24 },
+          {
+            slot_index: 1,
+            x_coord: 8,
+            y_coord: 6,
+            width: 84,
+            height: 41,
+            crop_config: { divider_ratio: 0.5, layout_type: '2_slot_vertical' },
+          },
+          {
+            slot_index: 2,
+            x_coord: 8,
+            y_coord: 53,
+            width: 84,
+            height: 41,
+            crop_config: { divider_ratio: 0.5, layout_type: '2_slot_vertical' },
+          },
         ];
 
     const slotInserts = defaultSlots.map((s) => ({
@@ -201,6 +243,7 @@ export async function POST(request: NextRequest) {
       height: s.height,
       rotation: 0,
       fit_mode: 'cover',
+      crop_config: s.crop_config,
     }));
 
     await supabase.from('frame_slots').insert(slotInserts);
