@@ -63,13 +63,13 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         className={cn(
-          'w-full bg-surface border border-border shadow-elevation rounded-lg overflow-hidden animate-in zoom-in-95 duration-200',
+          'w-full max-h-[92vh] flex flex-col bg-surface border border-border shadow-elevation rounded-lg overflow-hidden animate-in zoom-in-95 duration-200',
           maxWidthClasses[maxWidth] || 'max-w-md'
         )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-4 border-b border-border bg-canvas/40">
+        <div className="flex items-start justify-between p-4 border-b border-border bg-canvas/40 shrink-0">
           <div>
             <h3 className="text-sm font-semibold text-content-primary font-headline">{title}</h3>
             {description && <p className="text-xs text-content-secondary mt-0.5">{description}</p>}
@@ -83,10 +83,10 @@ export function Modal({
         </div>
 
         {/* Content Body */}
-        {children && <div className="p-4 text-xs text-content-secondary">{children}</div>}
+        {children && <div className="p-4 text-xs text-content-secondary overflow-y-auto flex-1">{children}</div>}
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-2 p-3 bg-canvas/40 border-t border-border">
+        <div className="flex items-center justify-end gap-2 p-3 bg-canvas/40 border-t border-border shrink-0">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={isLoading}>
             {cancelLabel}
           </Button>
