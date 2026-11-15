@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
           batch_name,
           valid_from,
           valid_until,
-          package:packages (
+          packages (
             id,
             name,
             price,
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     const batch: any = Array.isArray(ticket.batch) ? ticket.batch[0] : ticket.batch;
-    const pkg: any = batch?.package ? (Array.isArray(batch.package) ? batch.package[0] : batch.package) : null;
+    const pkg: any = batch?.packages ? (Array.isArray(batch.packages) ? batch.packages[0] : batch.packages) : null;
 
     if (preview_only) {
       return NextResponse.json({
