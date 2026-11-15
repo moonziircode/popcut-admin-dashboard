@@ -1,0 +1,218 @@
+[
+  {
+    "id": "AUTH-01",
+    "module": "A. Auth & User",
+    "name": "Login with valid admin credentials",
+    "expected": "HTTP 200 with user session",
+    "actual": "Login OK: admin@popcut.id (Role: admin, Name: Rian Pratama)",
+    "status": "PASS",
+    "durationMs": 2711
+  },
+  {
+    "id": "AUTH-02",
+    "module": "A. Auth & User",
+    "name": "Reject invalid login credentials",
+    "expected": "HTTP 401 with error message",
+    "actual": "Correctly rejected: Kombinasi email atau kata sandi tidak valid. Silakan periksa kembali.",
+    "status": "PASS",
+    "durationMs": 1732
+  },
+  {
+    "id": "AUTH-03",
+    "module": "A. Auth & User",
+    "name": "Verify Role & Permission tables in Supabase",
+    "expected": "roles table has admin, operator, viewer",
+    "actual": "Found 3 roles: Owner, Admin, Staff Operasional",
+    "status": "PASS",
+    "durationMs": 164
+  },
+  {
+    "id": "DASH-01",
+    "module": "B. Overview",
+    "name": "Database aggregate metrics calculation",
+    "expected": "Exact count matches transactions and sessions in DB",
+    "actual": "Verified: 1 transactions, 1 sessions, 1 booths in DB",
+    "status": "PASS",
+    "durationMs": 166
+  },
+  {
+    "id": "EVT-01",
+    "module": "C. Events",
+    "name": "Create new event via API and verify in Supabase",
+    "expected": "Event created and persisted in events table",
+    "actual": "Event created: \"Popcut Gala E2E Testing 2026\" (27a80508-d27e-404a-99e0-f76d668ef6f7), Status: UPCOMING",
+    "status": "PASS",
+    "durationMs": 1190
+  },
+  {
+    "id": "EVT-02",
+    "module": "C. Events",
+    "name": "Activate event and verify booth synchronization state",
+    "expected": "Event is_active=true, status=ACTIVE",
+    "actual": "Event activated: is_active=true, status=ACTIVE",
+    "status": "PASS",
+    "durationMs": 2274
+  },
+  {
+    "id": "EVT-03",
+    "module": "C. Events",
+    "name": "Deactivate event (Booth Standby mode)",
+    "expected": "Event is_active=false, status=COMPLETED",
+    "actual": "Event deactivated: is_active=false, status=COMPLETED",
+    "status": "PASS",
+    "durationMs": 953
+  },
+  {
+    "id": "PKG-01",
+    "module": "D. Package & Pricing",
+    "name": "Create package via API and verify in Supabase",
+    "expected": "Package saved with price, photo count, included strips",
+    "actual": "Package persisted: \"Paket Platinum 4R Special E2E\", Price=Rp50000, Photos=4, Strips=2",
+    "status": "PASS",
+    "durationMs": 2073
+  },
+  {
+    "id": "FRM-01",
+    "module": "E. Frame Mgmt",
+    "name": "Create 4R Frame with 4-slot layout and verify coordinates",
+    "expected": "4R canvas 1200x1800, 4 slots saved with x,y,w,h in frame_slots",
+    "actual": "4R Frame created (1200x1800), version 3a1a3efe-c136-46e5-9d64-badd8c214d0e, 4 slots verified in Supabase",
+    "status": "PASS",
+    "durationMs": 4356
+  },
+  {
+    "id": "FRM-02",
+    "module": "E. Frame Mgmt",
+    "name": "Verify 2, 3, 6, 8 slot layouts persistence under 4R constraint",
+    "expected": "All slot configurations strictly bounded by 4R dimensions",
+    "actual": "Validated 2, 3, 6, 8 slot layouts: all saved and verified with 4R canvas dimensions (1200x1800)",
+    "status": "PASS",
+    "durationMs": 14056
+  },
+  {
+    "id": "FRM-03",
+    "module": "E. Frame Mgmt",
+    "name": "Verify Frame Pricing Calculation by Slot Count",
+    "expected": "Frame slot count matches package photo requirement and pricing rules",
+    "actual": "Pricing consistency PASS: Base (4-photo) Rp50000 + 2 prints (@Rp25000) = Rp100000",
+    "status": "PASS",
+    "durationMs": 0
+  },
+  {
+    "id": "VOUCH-01",
+    "module": "F. Vouchers",
+    "name": "Create voucher in Admin and verify persistence in Supabase",
+    "expected": "Voucher saved in promotions and code in promotion_codes",
+    "actual": "Voucher created and verified: code=E2EVOUCH9982, promo_id=9a684876-c741-40a4-aebb-6228a0ce81b0, usage_count=0",
+    "status": "PASS",
+    "durationMs": 2296
+  },
+  {
+    "id": "VOUCH-02",
+    "module": "F. Vouchers",
+    "name": "Validate voucher via API without redemption",
+    "expected": "Discount calculated, usage count remains 0",
+    "actual": "Validation PASS: 50% discount on Rp100.000 = Rp50000, usage_count=0",
+    "status": "PASS",
+    "durationMs": 695
+  },
+  {
+    "id": "VOUCH-03",
+    "module": "F. Vouchers",
+    "name": "Execute atomic redemption via PostgreSQL RPC",
+    "expected": "Usage incremented, redemption record created",
+    "actual": "Atomic RPC execution PASS: code=E2EVOUCH9982, usage_count=1, discount=50000",
+    "status": "PASS",
+    "durationMs": 697
+  },
+  {
+    "id": "VOUCH-04",
+    "module": "F. Vouchers",
+    "name": "Reject inactive or exhausted voucher",
+    "expected": "HTTP error or rejection response returned",
+    "actual": "Inactive voucher correctly rejected: Voucher tidak aktif",
+    "status": "PASS",
+    "durationMs": 2920
+  },
+  {
+    "id": "TKT-01",
+    "module": "G. Prepaid Tickets",
+    "name": "Generate batch and redeem ticket",
+    "expected": "Batch created in prepaid_batches and ticket redeemed",
+    "actual": "Batch created (E2E VIP Pass Batch), ticket E2EV-001-7515 redeemed and verified (status: USED)",
+    "status": "PASS",
+    "durationMs": 3092
+  },
+  {
+    "id": "BOOTH-01",
+    "module": "I. Booth Mgmt",
+    "name": "Process booth heartbeat telemetry",
+    "expected": "Telemetry acknowledged with server timestamp",
+    "actual": "Heartbeat accepted: booth=BOOTH-E2E-01, camera=CONNECTED, printer=READY, ack=2026-11-15T17:10:18.273Z",
+    "status": "PASS",
+    "durationMs": 494
+  },
+  {
+    "id": "CONFIG-01",
+    "module": "J. Config Mgmt",
+    "name": "Fetch booth config and verify manifest components",
+    "expected": "Returns event, packages, frames, and promotions",
+    "actual": "Config manifest verified: packages=9, frames=7, promotions=3",
+    "status": "PASS",
+    "durationMs": 3322
+  },
+  {
+    "id": "TRX-01",
+    "module": "K. Sessions & Trx",
+    "name": "Create and link session and transaction records",
+    "expected": "Records created and linked in Supabase",
+    "actual": "Linked session & transaction created: Session 268cc79e-fae2-4682-8fb1-d369898e1c6a <-> TRX 41a47ce7-3cd1-433d-9c55-9270fa030c5a",
+    "status": "PASS",
+    "durationMs": 240
+  },
+  {
+    "id": "PRINT-01",
+    "module": "L. Print Jobs",
+    "name": "Create print job and update lifecycle state",
+    "expected": "Print job status transitions to COMPLETED",
+    "actual": "Print job lifecycle verified: 500c194f-2ac9-4e34-8546-5ddf27397d78 is COMPLETED",
+    "status": "PASS",
+    "durationMs": 1427
+  },
+  {
+    "id": "GAL-01",
+    "module": "M. Digital Gallery",
+    "name": "Register digital gallery and access web viewer",
+    "expected": "Gallery registered with public QR route and accessible",
+    "actual": "Digital Gallery verified: QR Route=https://popcut-admin-dashboard.vercel.app/gallery/268cc79e-fae2-4682-8fb1-d369898e1c6a?token=34954f8dbc4ed99e1f768b645e40f7da, Viewer HTTP 200",
+    "status": "PASS",
+    "durationMs": 2068
+  },
+  {
+    "id": "R2-01",
+    "module": "N. Cloudflare R2",
+    "name": "Upload binary media via Storage Adapter",
+    "expected": "File uploaded, SHA-256 computed, storage URL returned",
+    "actual": "Storage upload PASS: Provider=supabase_storage, Bucket=galleries, ObjectKey=events/EVT-GEN/booths/BOOTH-01/sessions/268cc79e-fae2-4682-8fb1-d369898e1c6a/final/photo-final.jpg, SHA256=f74e2ff3d1...",
+    "status": "PASS",
+    "durationMs": 1491
+  },
+  {
+    "id": "LOG-01",
+    "module": "O. Activity Logs",
+    "name": "Insert audit log and verify persistence in Supabase",
+    "expected": "Activity record saved in activity_logs table",
+    "actual": "Audit log successfully recorded in Supabase activity_logs",
+    "status": "PASS",
+    "durationMs": 85
+  },
+  {
+    "id": "CROSS-01",
+    "module": "Cross-App Flow",
+    "name": "Complete Cross-Application Flow Simulation",
+    "expected": "Admin config published -> Booth sync -> Transaction -> Gallery",
+    "actual": "Cross-Application Flow PASSED: Admin published -> Booth read 9 packages & 7 frames -> Config ACK applied v2.4.1",
+    "status": "PASS",
+    "durationMs": 2571
+  }
+]

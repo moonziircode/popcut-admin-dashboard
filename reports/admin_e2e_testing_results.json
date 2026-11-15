@@ -1,0 +1,213 @@
+[
+  {
+    "id": "AUTH-01",
+    "module": "A. Auth & User",
+    "name": "Login with valid admin credentials",
+    "expected": "HTTP 200 with session/token",
+    "actual": "ERROR: HTTP 401",
+    "status": "FAIL",
+    "durationMs": 1353,
+    "details": "Error: HTTP 401\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:44:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:38:3)"
+  },
+  {
+    "id": "AUTH-02",
+    "module": "A. Auth & User",
+    "name": "Reject invalid login credentials",
+    "expected": "HTTP 401 or success:false",
+    "actual": "Correctly rejected: Invalid credentials",
+    "status": "PASS",
+    "durationMs": 1148
+  },
+  {
+    "id": "AUTH-03",
+    "module": "A. Auth & User",
+    "name": "Verify Role & Permission tables in Supabase",
+    "expected": "roles table has admin, operator, viewer",
+    "actual": "Found 3 roles: Owner, Admin, Staff Operasional",
+    "status": "PASS",
+    "durationMs": 448
+  },
+  {
+    "id": "DASH-01",
+    "module": "B. Overview",
+    "name": "Database aggregate metrics calculation",
+    "expected": "Exact count matches transactions and sessions",
+    "actual": "Verified: 1 transactions, 1 sessions in DB",
+    "status": "PASS",
+    "durationMs": 161
+  },
+  {
+    "id": "EVT-01",
+    "module": "C. Events",
+    "name": "Create new event via API and verify in Supabase",
+    "expected": "Event persisted in events table",
+    "actual": "ERROR: Event row not found in Supabase",
+    "status": "FAIL",
+    "durationMs": 1258,
+    "details": "Error: Event row not found in Supabase\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:99:31\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:83:3)"
+  },
+  {
+    "id": "EVT-02",
+    "module": "C. Events",
+    "name": "Deactivate event and verify status change",
+    "expected": "Status updated to INACTIVE/COMPLETED",
+    "actual": "ERROR: HTTP 405",
+    "status": "FAIL",
+    "durationMs": 290,
+    "details": "Error: HTTP 405\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:109:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:103:3)"
+  },
+  {
+    "id": "PKG-01",
+    "module": "D. Package & Pricing",
+    "name": "Create package and verify price rules",
+    "expected": "Package saved with correct pricing and photos count",
+    "actual": "ERROR: HTTP 405",
+    "status": "FAIL",
+    "durationMs": 397,
+    "details": "Error: HTTP 405\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:131:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:118:3)"
+  },
+  {
+    "id": "FRM-01",
+    "module": "E. Frame Mgmt",
+    "name": "Create 4R Frame with 4-slot layout",
+    "expected": "4R resolution 1200x1800, 4 slots persisted",
+    "actual": "ERROR: HTTP 405",
+    "status": "FAIL",
+    "durationMs": 411,
+    "details": "Error: HTTP 405\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:161:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:141:3)"
+  },
+  {
+    "id": "FRM-02",
+    "module": "E. Frame Mgmt",
+    "name": "Test 2, 3, 6, 8 slot layouts persistence",
+    "expected": "All multi-slot configurations valid under 4R",
+    "actual": "ERROR: Mismatch for 2 slots: found undefined",
+    "status": "FAIL",
+    "durationMs": 360,
+    "details": "Error: Mismatch for 2 slots: found undefined\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:189:55\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:167:3)"
+  },
+  {
+    "id": "FRM-03",
+    "module": "E. Frame Mgmt",
+    "name": "Verify Frame Pricing Calculation by Slot Count",
+    "expected": "4-slot frame maps to 4-photo package price",
+    "actual": "Slot & Pricing formula consistent: Base Rp50000 + 1 Extra Print = Rp75000",
+    "status": "PASS",
+    "durationMs": 0
+  },
+  {
+    "id": "VOUCH-01",
+    "module": "F. Vouchers",
+    "name": "Create voucher in Admin and verify persistence",
+    "expected": "Voucher and code persisted in Supabase",
+    "actual": "ERROR: HTTP 405",
+    "status": "FAIL",
+    "durationMs": 124,
+    "details": "Error: HTTP 405\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:230:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:213:3)"
+  },
+  {
+    "id": "VOUCH-02",
+    "module": "F. Vouchers",
+    "name": "Validate voucher via API without redemption",
+    "expected": "Discount calculated, quota unchanged",
+    "actual": "ERROR: HTTP 404",
+    "status": "FAIL",
+    "durationMs": 592,
+    "details": "Error: HTTP 404\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:248:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:238:3)"
+  },
+  {
+    "id": "VOUCH-03",
+    "module": "F. Vouchers",
+    "name": "Execute atomic redemption via PostgreSQL RPC",
+    "expected": "Usage incremented, redemption record created",
+    "actual": "ERROR: HTTP 500",
+    "status": "FAIL",
+    "durationMs": 658,
+    "details": "Error: HTTP 500\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:267:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:256:3)"
+  },
+  {
+    "id": "VOUCH-04",
+    "module": "F. Vouchers",
+    "name": "Reject inactive or exhausted voucher",
+    "expected": "HTTP error or rejection response",
+    "actual": "Inactive voucher correctly rejected: Voucher tidak aktif",
+    "status": "PASS",
+    "durationMs": 1009
+  },
+  {
+    "id": "TKT-01",
+    "module": "G. Prepaid Tickets",
+    "name": "Generate and validate prepaid ticket",
+    "expected": "Ticket created and redeemable",
+    "actual": "ERROR: HTTP 500",
+    "status": "FAIL",
+    "durationMs": 1135,
+    "details": "Error: HTTP 500\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:308:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:296:3)"
+  },
+  {
+    "id": "BOOTH-01",
+    "module": "I. Booth Mgmt",
+    "name": "Process booth heartbeat telemetry",
+    "expected": "Heartbeat acknowledged with config status",
+    "actual": "ERROR: HTTP 400",
+    "status": "FAIL",
+    "durationMs": 315,
+    "details": "Error: HTTP 400\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:332:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:322:3)"
+  },
+  {
+    "id": "CONFIG-01",
+    "module": "J. Config Mgmt",
+    "name": "Fetch booth config and verify active packages/frames",
+    "expected": "Returns complete manifest bundle",
+    "actual": "Config bundle verified: event=Active, packages=2, frames=2",
+    "status": "PASS",
+    "durationMs": 3483
+  },
+  {
+    "id": "TRX-01",
+    "module": "K. Sessions & Trx",
+    "name": "Create session and transaction record",
+    "expected": "Session & Transaction linked in Supabase",
+    "actual": "ERROR: Could not find the 'event_id' column of 'sessions' in the schema cache",
+    "status": "FAIL",
+    "durationMs": 138
+  },
+  {
+    "id": "PRINT-01",
+    "module": "L. Print Jobs",
+    "name": "Create print job and update lifecycle state",
+    "expected": "Job transitions from QUEUED to COMPLETED",
+    "actual": "ERROR: Could not find the 'copies' column of 'print_jobs' in the schema cache",
+    "status": "FAIL",
+    "durationMs": 50
+  },
+  {
+    "id": "GAL-01",
+    "module": "M. Digital Gallery",
+    "name": "Register digital gallery and access web viewer",
+    "expected": "Gallery available with public URL and token",
+    "actual": "ERROR: HTTP 400",
+    "status": "FAIL",
+    "durationMs": 319,
+    "details": "Error: HTTP 400\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:416:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:405:3)"
+  },
+  {
+    "id": "R2-01",
+    "module": "N. Cloudflare R2",
+    "name": "Upload binary media via Storage Adapter",
+    "expected": "Checksum SHA-256 computed, media url generated",
+    "actual": "ERROR: HTTP 404",
+    "status": "FAIL",
+    "durationMs": 1152,
+    "details": "Error: HTTP 404\n    at /Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:441:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runTest (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:17:20)\n    at async main (/Users/aqsamuflihan/Downloads/Admin Popcut.id/scripts/full-admin-e2e-test.js:427:3)"
+  },
+  {
+    "id": "LOG-01",
+    "module": "O. Activity Logs",
+    "name": "Insert audit log and query persistence",
+    "expected": "Activity record recorded in activity_logs table",
+    "actual": "ERROR: Could not find the 'details' column of 'activity_logs' in the schema cache",
+    "status": "FAIL",
+    "durationMs": 93
+  }
+]
