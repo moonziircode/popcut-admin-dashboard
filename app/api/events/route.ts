@@ -9,8 +9,8 @@ export async function GET(req: NextRequest) {
   const activeOnly = req.nextUrl.searchParams.get('active_only') === 'true';
 
   if (activeOnly) {
-    const active = eventsStore.find((e) => e.is_active) || eventsStore[0];
-    return NextResponse.json({ event: active });
+    const active = eventsStore.find((e) => e.is_active) || null;
+    return NextResponse.json({ event: active, is_standby: !active });
   }
 
   return NextResponse.json({ events: eventsStore });
@@ -104,6 +104,27 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({
         success: true,
         message: `Event "${updated?.name}" kini aktif untuk armada booth.`,
+        event: updated,
+      });
+    }
+
+    if (action === 'DEACTIVATE' || action === 'COMPLETE') {
+      eventsStore = eventsStore.map((e) => {
+        if (e.id === event_id) {
+          return {
+            ...e,
+            is_active: false,
+            status: 'COMPLETED',
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return e;
+      });
+
+      const updated = eventsStore.find((e) => e.id === event_id);
+      return NextResponse.json({
+        success: true,
+        message: `Event "${updated?.name}" telah dinonaktifkan. Armada booth kini dalam mode Standby.`,
         event: updated,
       });
     }

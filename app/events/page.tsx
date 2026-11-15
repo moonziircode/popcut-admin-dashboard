@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   PartyPopper,
   Filter,
+  StopCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -36,8 +38,11 @@ export default function EventsPage() {
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
+  const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
   const [targetEventToActivate, setTargetEventToActivate] = useState<PhotoboothEvent | null>(null);
+  const [targetEventToDeactivate, setTargetEventToDeactivate] = useState<PhotoboothEvent | null>(null);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [notification, setNotification] = useState<string | null>(null);
 
   // New Event Form State
   const [eventName, setEventName] = useState('');
@@ -51,7 +56,7 @@ export default function EventsPage() {
   const [selectedFrames, setSelectedFrames] = useState<string[]>(['frame-001', 'frame-002']);
 
   // Active event
-  const activeEvent = events.find((e) => e.is_active) || events[0];
+  const activeEvent = events.find((e) => e.is_active) || null;
 
   // Handle Switch Active Event
   const handleConfirmSwitchEvent = () => {
@@ -66,7 +71,31 @@ export default function EventsPage() {
     );
 
     setIsSwitchModalOpen(false);
+    setNotification(`Event "${targetEventToActivate.name}" berhasil diaktifkan ke Mobile Rig #1.`);
     setTargetEventToActivate(null);
+  };
+
+  // Handle Deactivate Active Event (Put booth to standby)
+  const handleConfirmDeactivateEvent = () => {
+    if (!targetEventToDeactivate) return;
+
+    setEvents((prev) =>
+      prev.map((e) => {
+        if (e.id === targetEventToDeactivate.id) {
+          return {
+            ...e,
+            is_active: false,
+            status: 'COMPLETED',
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return e;
+      })
+    );
+
+    setIsDeactivateModalOpen(false);
+    setNotification(`Event "${targetEventToDeactivate.name}" telah dinonaktifkan. Armada kini dalam status Standby.`);
+    setTargetEventToDeactivate(null);
   };
 
   // Handle Create Event
@@ -137,8 +166,24 @@ export default function EventsPage() {
           </div>
         </div>
 
-        {/* 2. Primary Hero Card: Currently Active Event Running on Rig */}
-        {activeEvent && (
+        {/* Notification Alert if any */}
+        {notification && (
+          <div className="p-3 bg-brand/20 border border-brand/50 rounded-lg text-xs font-medium text-brand-contrast flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+              <span>{notification}</span>
+            </div>
+            <button
+              onClick={() => setNotification(null)}
+              className="text-[11px] underline opacity-80 hover:opacity-100"
+            >
+              Tutup
+            </button>
+          </div>
+        )}
+
+        {/* 2. Primary Hero Card: Currently Active Event Running on Rig OR Standby Mode */}
+        {activeEvent ? (
           <div className="bg-surface border-2 border-brand/50 rounded-xl p-5 shadow-elevation relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-brand text-brand-contrast px-4 py-1 rounded-bl-lg font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5 shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-emerald-700 animate-pulse" />
@@ -218,20 +263,93 @@ export default function EventsPage() {
                   </div>
                 </div>
 
+                <div className="flex flex-col gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full text-xs"
+                    onClick={() => {
+                      const nextEvt = events.find((e) => !e.is_active && e.id !== activeEvent.id);
+                      if (nextEvt) {
+                        setTargetEventToActivate(nextEvt);
+                        setIsSwitchModalOpen(true);
+                      }
+                    }}
+                  >
+                    <CalendarDays className="w-3.5 h-3.5 mr-1" />
+                    Ganti Event untuk Booth Ini
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+                    onClick={() => {
+                      setTargetEventToDeactivate(activeEvent);
+                      setIsDeactivateModalOpen(true);
+                    }}
+                  >
+                    <StopCircle className="w-3.5 h-3.5 mr-1 text-red-500" />
+                    Akhiri Event (Nonaktifkan)
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Standby Mode Hero Banner when no event is running */
+          <div className="bg-surface border-2 border-dashed border-border-strong rounded-xl p-5 shadow-xs relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-content-muted text-white px-4 py-1 rounded-bl-lg font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              STATUS BOOTH: STANDBY (SIAGA)
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  Tidak Ada Event yang Berjalan
+                </div>
+                <h3 className="text-lg font-bold font-headline text-content-primary">
+                  Armada Photobooth Sedang Berada Dalam Mode Siaga (Standby)
+                </h3>
+                <p className="text-xs text-content-secondary leading-relaxed">
+                  Layar Customer Application pada <strong>Mobile Rig #1 (MacBook Pro M1 Pro)</strong> saat ini menampilkan standby screen Popcut.id default. Pilih event mendatang dari katalog di bawah atau buat event baru untuk mengaktifkan sesi operasional booth.
+                </p>
+                <div className="flex items-center gap-4 text-xs text-content-muted pt-1">
+                  <span>Hardware Status: <strong className="text-emerald-600 font-medium">Ready (Online)</strong></span>
+                  <span>•</span>
+                  <span>Printer & DSLR: <strong className="text-emerald-600 font-medium">Connected</strong></span>
+                  <span>•</span>
+                  <span>Data Finansial: <strong className="text-content-primary font-medium">Tersimpan Aman</strong></span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 shrink-0">
                 <Button
                   size="sm"
-                  variant="secondary"
-                  className="w-full text-xs"
+                  variant="primary"
+                  className="bg-brand text-brand-contrast hover:bg-brand-hover text-xs"
                   onClick={() => {
-                    const nextEvt = events.find((e) => !e.is_active);
-                    if (nextEvt) {
-                      setTargetEventToActivate(nextEvt);
+                    const upcomingEvt = events.find((e) => !e.is_active);
+                    if (upcomingEvt) {
+                      setTargetEventToActivate(upcomingEvt);
                       setIsSwitchModalOpen(true);
+                    } else {
+                      setIsCreateModalOpen(true);
                     }
                   }}
                 >
-                  <CalendarDays className="w-3.5 h-3.5 mr-1" />
-                  Ganti Event untuk Booth Ini
+                  <Sparkles className="w-3.5 h-3.5 mr-1 text-brand-dark" />
+                  Pilih & Aktifkan Event
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => setIsCreateModalOpen(true)}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Buat Event Baru
                 </Button>
               </div>
             </div>
@@ -303,9 +421,23 @@ export default function EventsPage() {
 
                 <div className="pt-4 border-t border-border mt-4 flex items-center justify-between gap-2">
                   {isCurActive ? (
-                    <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Sedang Aktif di Kiosk
-                    </span>
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Sedang Aktif di Kiosk
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 py-1 px-2.5 h-7"
+                        onClick={() => {
+                          setTargetEventToDeactivate(evt);
+                          setIsDeactivateModalOpen(true);
+                        }}
+                      >
+                        <StopCircle className="w-3 h-3 mr-1 text-red-500" />
+                        Akhiri Event
+                      </Button>
+                    </div>
                   ) : (
                     <Button
                       size="sm"
@@ -488,6 +620,42 @@ export default function EventsPage() {
                 <div className="text-[11px] text-content-muted">Target Event Baru:</div>
                 <div className="font-bold text-sm font-headline">{targetEventToActivate.name}</div>
                 <div className="text-[11px] text-content-secondary">{targetEventToActivate.client_name} • {targetEventToActivate.venue}</div>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* 6B. MODAL: Konfirmasi Pengakhiran / Deaktivasi Event */}
+        <Modal
+          isOpen={isDeactivateModalOpen}
+          onClose={() => setIsDeactivateModalOpen(false)}
+          title="Akhiri & Nonaktifkan Event Berjalan"
+          description="Konfirmasikan pengakhiran event operasional untuk mengembalikan armada booth ke mode Siaga (Standby)."
+          cancelLabel="Batal"
+          confirmLabel="Ya, Akhiri Event Sekarang"
+          onConfirm={handleConfirmDeactivateEvent}
+        >
+          {targetEventToDeactivate && (
+            <div className="space-y-4 text-xs text-content-secondary">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-950 space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-red-900">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  Protokol Pengakhiran Event Dinamis
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-[11px] text-red-800">
+                  <li>Layar Customer Application pada MacBook akan otomatis kembali ke <strong>Standby Screen (Mode Siaga)</strong> default Popcut.id.</li>
+                  <li>Status event ini diubah menjadi <strong className="font-semibold text-red-950">COMPLETED (Selesai)</strong>.</li>
+                  <li><strong>Data Finansial Aman:</strong> Seluruh riwayat transaksi (Midtrans/QRIS/Tunai), pendapatan, foto sesi, dan print job tetap 100% tersimpan aman di database dan laporan analitik.</li>
+                  <li>Anda dapat mengaktifkan kembali event lain kapan saja tanpa perlu me-restart perangkat hardware booth.</li>
+                </ul>
+              </div>
+
+              <div className="p-3 bg-surface border border-border rounded-lg space-y-1 text-content-primary">
+                <div className="text-[11px] text-content-muted">Event yang akan diakhiri:</div>
+                <div className="font-bold text-sm font-headline text-red-700">{targetEventToDeactivate.name}</div>
+                <div className="text-[11px] text-content-secondary">
+                  Klien: {targetEventToDeactivate.client_name} • Venue: {targetEventToDeactivate.venue}
+                </div>
               </div>
             </div>
           )}
