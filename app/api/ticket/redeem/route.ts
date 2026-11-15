@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Mark as CLAIMED / USED
+    // 2. Mark as USED
     const isValidUuid = (val: any) =>
       typeof val === 'string' &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     const { error: claimErr } = await supabase
       .from('prepaid_tickets')
       .update({
-        status: 'CLAIMED',
+        status: 'USED',
         claimed_at: new Date().toISOString(),
         claimed_session_id: dbSessionId,
       })
