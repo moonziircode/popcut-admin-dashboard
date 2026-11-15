@@ -32,9 +32,9 @@ import {
 import { PrepaidBatch, PrepaidTicket, Package } from '@/types/database.types';
 
 export default function TicketsPage() {
-  const [batches, setBatches] = useState<PrepaidBatch[]>(initialPrepaidBatches);
-  const [tickets, setTickets] = useState<PrepaidTicket[]>(initialPrepaidTickets);
-  const [packages] = useState<Package[]>(initialPackages);
+  const [batches, setBatches] = useState<PrepaidBatch[]>([]);
+  const [tickets, setTickets] = useState<PrepaidTicket[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');

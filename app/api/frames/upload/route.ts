@@ -91,10 +91,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!categoryId) {
-      return NextResponse.json(
-        { success: false, error: 'Kategori frame tidak ditemukan di database.' },
-        { status: 400 }
-      );
+      const { data: newCat } = await supabase
+        .from('frame_categories')
+        .insert({ name: 'Classic Photostrip', slug: 'classic', description: 'Format strip 2x6 klasik' })
+        .select('id')
+        .single();
+      categoryId = newCat?.id || null;
     }
 
     // 7. Generate IDs and File Path

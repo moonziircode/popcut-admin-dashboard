@@ -24,7 +24,7 @@ import { initialPrintJobs, initialBooths } from '@/lib/data/mock-data';
 import { PrintJob } from '@/types/database.types';
 
 export default function PrintJobsPage() {
-  const [printJobs, setPrintJobs] = useState<PrintJob[]>(initialPrintJobs);
+  const [printJobs, setPrintJobs] = useState<PrintJob[]>([]);
   const [isReprintModalOpen, setIsReprintModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<PrintJob | null>(null);
   const [reprintQuantity, setReprintQuantity] = useState<number>(1);
@@ -103,74 +103,82 @@ export default function PrintJobsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {printJobs.map((job) => (
-                  <tr
-                    key={job.id}
-                    className={`hover:bg-canvas/30 transition-colors ${
-                      job.status === 'UNKNOWN' ? 'bg-amber-50/40' : ''
-                    }`}
-                  >
-                    <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
-                      {job.print_job_number}
-                      {job.parent_print_job_id && (
-                        <span className="block text-[10px] text-brand-contrast bg-brand-light px-1.5 py-0.2 rounded w-fit mt-0.5 font-sans font-semibold">
-                          Reprint Terkait
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-content-secondary">
-                      {formatDateId(job.submitted_at)}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-content-primary">
-                        {initialBooths.find((b) => b.id === job.booth_id)?.name || job.booth_id}
-                      </div>
-                      <span className="text-[11px] text-content-muted font-mono">
-                        {job.printer_model || 'DNP RX1HS'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="font-medium text-content-primary">
-                        {job.requested_strips} Strip ({job.print_layout})
-                      </span>
-                      <span className="block text-[10px] text-content-muted">
-                        {job.sheet_count} lembar fisik
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge
-                        variant={
-                          job.status === 'COMPLETED'
-                            ? 'success'
-                            : job.status === 'UNKNOWN'
-                            ? 'warning'
-                            : job.status === 'FAILED'
-                            ? 'error'
-                            : 'neutral'
-                        }
-                        dot
-                      >
-                        {job.status}
-                      </Badge>
-                    </td>
-                    <td className="py-3.5 px-4 max-w-xs truncate text-content-secondary text-[11px]">
-                      {job.error_message || job.reprint_reason || 'Proses pencetakan normal.'}
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      {(job.status === 'FAILED' || job.status === 'UNKNOWN' || job.status === 'COMPLETED') && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleOpenReprint(job)}
-                          className="gap-1 text-xs"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          Reprint
-                        </Button>
-                      )}
+                {printJobs.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-content-muted text-xs">
+                      Belum ada riwayat antrean cetak di sistem.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  printJobs.map((job) => (
+                    <tr
+                      key={job.id}
+                      className={`hover:bg-canvas/30 transition-colors ${
+                        job.status === 'UNKNOWN' ? 'bg-amber-50/40' : ''
+                      }`}
+                    >
+                      <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
+                        {job.print_job_number}
+                        {job.parent_print_job_id && (
+                          <span className="block text-[10px] text-brand-contrast bg-brand-light px-1.5 py-0.2 rounded w-fit mt-0.5 font-sans font-semibold">
+                            Reprint Terkait
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-content-secondary">
+                        {formatDateId(job.submitted_at)}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-content-primary">
+                          {initialBooths.find((b) => b.id === job.booth_id)?.name || job.booth_id}
+                        </div>
+                        <span className="text-[11px] text-content-muted font-mono">
+                          {job.printer_model || 'DNP RX1HS'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="font-medium text-content-primary">
+                          {job.requested_strips} Strip ({job.print_layout})
+                        </span>
+                        <span className="block text-[10px] text-content-muted">
+                          {job.sheet_count} lembar fisik
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <Badge
+                          variant={
+                            job.status === 'COMPLETED'
+                              ? 'success'
+                              : job.status === 'UNKNOWN'
+                              ? 'warning'
+                              : job.status === 'FAILED'
+                              ? 'error'
+                              : 'neutral'
+                          }
+                          dot
+                        >
+                          {job.status}
+                        </Badge>
+                      </td>
+                      <td className="py-3.5 px-4 max-w-xs truncate text-content-secondary text-[11px]">
+                        {job.error_message || job.reprint_reason || 'Proses pencetakan normal.'}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        {(job.status === 'FAILED' || job.status === 'UNKNOWN' || job.status === 'COMPLETED') && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleOpenReprint(job)}
+                            className="gap-1 text-xs"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            Reprint
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

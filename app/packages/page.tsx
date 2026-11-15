@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Package as PackageIcon,
   Plus,
@@ -14,6 +14,7 @@ import {
   Video,
   Download,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -22,11 +23,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { formatRupiah, formatDateId } from '@/lib/utils';
-import { initialPackages } from '@/lib/data/mock-data';
 import { Package } from '@/types/database.types';
 
 export default function PackagesPage() {
-  const [packages, setPackages] = useState<Package[]>(initialPackages);
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'packages' | 'addon-prints'>('packages');
 
   // Modal / Drawer state
@@ -53,6 +54,25 @@ export default function PackagesPage() {
   const [addonPrice, setAddonPrice] = useState<number>(15000);
   const [addonMinQty, setAddonMinQty] = useState<number>(1);
   const [addonMaxQty, setAddonMaxQty] = useState<number>(6);
+
+  const fetchPackages = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/packages');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.packages)) {
+        setPackages(data.packages);
+      }
+    } catch (err) {
+      console.error('Failed to load packages:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPackages();
+  }, []);
 
   const handleOpenCreate = () => {
     setSelectedPackage(null);
@@ -84,73 +104,100 @@ export default function PackagesPage() {
     setIsDrawerOpen(true);
   };
 
-  const handleSavePackage = (e: React.FormEvent) => {
+  const handleSavePackage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formCode.trim()) return;
 
-    if (selectedPackage) {
-      // Update existing
-      setPackages((prev) =>
-        prev.map((p) =>
-          p.id === selectedPackage.id
-            ? {
-                ...p,
-                name: formName,
-                internal_code: formCode,
-                description: formDescription,
-                price: Number(formPrice),
-                photo_count: Number(formPhotoCount),
-                included_strips: Number(formIncludedStrips),
-                include_live_photo: formIncludeLivePhoto,
-                include_digital_files: formIncludeDigitalFiles,
-                display_order: Number(formDisplayOrder),
-                is_active: formIsActive,
-                updated_at: new Date().toISOString(),
-              }
-            : p
-        )
-      );
-    } else {
-      // Create new
-      const newPkg: Package = {
-        id: `pkg-${Date.now()}`,
-        internal_code: formCode,
-        name: formName,
-        description: formDescription,
-        price: Number(formPrice),
-        photo_count: Number(formPhotoCount),
-        included_strips: Number(formIncludedStrips),
-        include_live_photo: formIncludeLivePhoto,
-        include_digital_files: formIncludeDigitalFiles,
-        allowed_categories: ['classic', 'minimal', 'retro'],
-        display_order: Number(formDisplayOrder),
-        is_active: formIsActive,
-        is_archived: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setPackages((prev) => [...prev, newPkg]);
+    try {
+      if (selectedPackage) {
+        // Update existing in backend
+        const res = await fetch('/api/packages', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: selectedPackage.id,
+            name: formName,
+            internal_code: formCode,
+            description: formDescription,
+            price: Number(formPrice),
+            photo_count: Number(formPhotoCount),
+            included_strips: Number(formIncludedStrips),
+            include_live_photo: formIncludeLivePhoto,
+            include_digital_files: formIncludeDigitalFiles,
+            display_order: Number(formDisplayOrder),
+            is_active: formIsActive,
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.package) {
+          setPackages((prev) =>
+            prev.map((p) => (p.id === selectedPackage.id ? data.package : p))
+          );
+        }
+      } else {
+        // Create new in backend
+        const res = await fetch('/api/packages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            internal_code: formCode,
+            name: formName,
+            description: formDescription,
+            price: Number(formPrice),
+            photo_count: Number(formPhotoCount),
+            included_strips: Number(formIncludedStrips),
+            include_live_photo: formIncludeLivePhoto,
+            include_digital_files: formIncludeDigitalFiles,
+            display_order: Number(formDisplayOrder),
+            is_active: formIsActive,
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.package) {
+          setPackages((prev) => [...prev, data.package]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save package:', err);
     }
     setIsDrawerOpen(false);
   };
 
-  const handleDuplicate = (pkg: Package) => {
-    const duplicated: Package = {
-      ...pkg,
-      id: `pkg-${Date.now()}`,
-      internal_code: `${pkg.internal_code}-COPY`,
-      name: `${pkg.name} (Salinan)`,
-      display_order: packages.length + 1,
-      is_active: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setPackages((prev) => [...prev, duplicated]);
+  const handleDuplicate = async (pkg: Package) => {
+    try {
+      const res = await fetch('/api/packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          internal_code: `${pkg.internal_code}-COPY`,
+          name: `${pkg.name} (Salinan)`,
+          description: pkg.description,
+          price: pkg.price,
+          photo_count: pkg.photo_count,
+          included_strips: pkg.included_strips,
+          include_live_photo: pkg.include_live_photo,
+          include_digital_files: pkg.include_digital_files,
+          display_order: packages.length + 1,
+          is_active: false,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.package) {
+        setPackages((prev) => [...prev, data.package]);
+      }
+    } catch (err) {
+      console.error('Failed to duplicate package:', err);
+    }
   };
 
-  const handleArchiveConfirm = () => {
+  const handleArchiveConfirm = async () => {
     if (!packageToArchive) return;
-    setPackages((prev) => prev.filter((p) => p.id !== packageToArchive.id));
+    try {
+      await fetch(`/api/packages?id=${packageToArchive.id}`, { method: 'DELETE' });
+      setPackages((prev) => prev.filter((p) => p.id !== packageToArchive.id));
+    } catch (err) {
+      console.error('Failed to delete package:', err);
+    }
     setIsArchiveModalOpen(false);
     setPackageToArchive(null);
   };
@@ -210,91 +257,118 @@ export default function PackagesPage() {
           </button>
         </div>
 
-        {/* 3. TAB 1: Packages Grid */}
+        {/* 3. TAB 1: Packages Grid & Empty State */}
         {activeTab === 'packages' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {packages.map((pkg) => (
-              <Card key={pkg.id} className="flex flex-col justify-between hoverable">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="font-mono text-[10px] text-content-muted">{pkg.internal_code}</span>
-                      <h3 className="text-base font-bold text-content-primary font-headline mt-0.5">
-                        {pkg.name}
-                      </h3>
+          isLoading ? (
+            <div className="py-20 flex flex-col items-center justify-center text-center">
+              <Loader2 className="w-8 h-8 text-brand animate-spin mb-3" />
+              <p className="text-xs text-content-secondary">Memuat katalog paket...</p>
+            </div>
+          ) : packages.length === 0 ? (
+            <div className="py-16 px-4 bg-surface border-2 border-dashed border-border rounded-xl text-center max-w-lg mx-auto flex flex-col items-center">
+              <div className="w-14 h-14 rounded-full bg-canvas border border-border flex items-center justify-center mb-4 text-content-muted">
+                <PackageIcon className="w-7 h-7 text-content-muted" />
+              </div>
+              <h3 className="text-sm font-bold text-content-primary font-headline">
+                Belum Ada Paket Foto di Sistem
+              </h3>
+              <p className="text-xs text-content-secondary mt-1 leading-relaxed max-w-md">
+                Seluruh data paket telah dibersihkan. Buat paket foto pertama Anda untuk menentukan harga layanan, jumlah pose foto, dan jumlah cetak strip yang berlaku di booth.
+              </p>
+              <Button
+                size="sm"
+                onClick={handleOpenCreate}
+                className="mt-5 bg-brand text-brand-contrast hover:bg-brand-hover text-xs"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Buat Paket Pertama Sekarang
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {packages.map((pkg) => (
+                <Card key={pkg.id} className="flex flex-col justify-between hoverable">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="font-mono text-[10px] text-content-muted">{pkg.internal_code}</span>
+                        <h3 className="text-base font-bold text-content-primary font-headline mt-0.5">
+                          {pkg.name}
+                        </h3>
+                      </div>
+                      <Badge variant={pkg.is_active ? 'success' : 'neutral'} dot>
+                        {pkg.is_active ? 'Aktif' : 'Draft'}
+                      </Badge>
                     </div>
-                    <Badge variant={pkg.is_active ? 'success' : 'neutral'} dot>
-                      {pkg.is_active ? 'Aktif' : 'Draft'}
-                    </Badge>
+
+                    <p className="text-xs text-content-secondary line-clamp-2 leading-relaxed">
+                      {pkg.description || 'Tanpa deskripsi tambahan.'}
+                    </p>
+
+                    <div className="text-xl font-bold font-headline text-content-primary">
+                      {formatRupiah(pkg.price)}
+                      <span className="text-xs font-normal text-content-secondary"> / sesi</span>
+                    </div>
+
+                    {/* Feature Badges */}
+                    <div className="pt-3 border-t border-border grid grid-cols-2 gap-2 text-[11px] text-content-secondary">
+                      <div className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>{pkg.photo_count} Pose Foto</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>{pkg.included_strips} Strip Cetak</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Video className={`w-3.5 h-3.5 ${pkg.include_live_photo ? 'text-emerald-600' : 'text-content-muted'} shrink-0`} />
+                        <span className={pkg.include_live_photo ? 'text-content-primary' : 'text-content-muted line-through'}>
+                          Live Photo
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Download className={`w-3.5 h-3.5 ${pkg.include_digital_files ? 'text-emerald-600' : 'text-content-muted'} shrink-0`} />
+                        <span>QR Galeri</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <p className="text-xs text-content-secondary line-clamp-2 leading-relaxed">
-                    {pkg.description || 'Tanpa deskripsi tambahan.'}
-                  </p>
-
-                  <div className="text-xl font-bold font-headline text-content-primary">
-                    {formatRupiah(pkg.price)}
-                    <span className="text-xs font-normal text-content-secondary"> / sesi</span>
+                  {/* Card Action Buttons */}
+                  <div className="pt-4 mt-4 border-t border-border flex items-center justify-between gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setPreviewPackage(pkg);
+                        setIsPreviewOpen(true);
+                      }}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      Kiosk Preview
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => handleOpenEdit(pkg)}>
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => handleDuplicate(pkg)} title="Duplikasi">
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setPackageToArchive(pkg);
+                        setIsArchiveModalOpen(true);
+                      }}
+                      title="Arsipkan"
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
-
-                  {/* Feature Badges */}
-                  <div className="pt-3 border-t border-border grid grid-cols-2 gap-2 text-[11px] text-content-secondary">
-                    <div className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>{pkg.photo_count} Pose Foto</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>{pkg.included_strips} Strip Cetak</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Video className={`w-3.5 h-3.5 ${pkg.include_live_photo ? 'text-emerald-600' : 'text-content-muted'} shrink-0`} />
-                      <span className={pkg.include_live_photo ? 'text-content-primary' : 'text-content-muted line-through'}>
-                        Live Photo
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Download className={`w-3.5 h-3.5 ${pkg.include_digital_files ? 'text-emerald-600' : 'text-content-muted'} shrink-0`} />
-                      <span>QR Galeri</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Action Buttons */}
-                <div className="pt-4 mt-4 border-t border-border flex items-center justify-between gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => {
-                      setPreviewPackage(pkg);
-                      setIsPreviewOpen(true);
-                    }}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    Kiosk Preview
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => handleOpenEdit(pkg)}>
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => handleDuplicate(pkg)} title="Duplikasi">
-                    <Copy className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      setPackageToArchive(pkg);
-                      setIsArchiveModalOpen(true);
-                    }}
-                    title="Arsipkan"
-                  >
-                    <Archive className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )
         )}
 
         {/* 4. TAB 2: Additional Print Pricing */}

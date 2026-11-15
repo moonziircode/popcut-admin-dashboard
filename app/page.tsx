@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   TrendingUp,
@@ -14,23 +14,54 @@ import {
   CheckCircle2,
   ChevronRight,
   Filter,
+  Loader2,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatRupiah, formatDateId } from '@/lib/utils';
-import { initialTransactions, initialSessions, initialBooths, initialPrintJobs } from '@/lib/data/mock-data';
+import { initialBooths, initialPrintJobs } from '@/lib/data/mock-data';
+import { Transaction, Session } from '@/types/database.types';
 
 export default function OverviewPage() {
   const [period, setPeriod] = useState<'today' | '7days' | 'month'>('today');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const [trxRes, sesRes] = await Promise.all([
+          fetch('/api/transactions'),
+          fetch('/api/sessions'),
+        ]);
+        const trxData = await trxRes.json();
+        const sesData = await sesRes.json();
+        if (trxData.success && Array.isArray(trxData.transactions)) {
+          setTransactions(trxData.transactions);
+        }
+        if (sesData.success && Array.isArray(sesData.sessions)) {
+          setSessions(sesData.sessions);
+        }
+      } catch (err) {
+        console.error('Failed to load overview data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   // Operational metrics according to PRD financial rules:
   // ONLY PAID transactions count toward revenue
-  const paidTransactions = initialTransactions.filter((t) => t.payment_status === 'PAID');
+  const paidTransactions = transactions.filter((t) => t.payment_status === 'PAID');
   const totalRevenue = paidTransactions.reduce((acc, t) => acc + t.payable_amount, 0);
-  const pendingTransactions = initialTransactions.filter((t) => t.payment_status === 'PENDING');
-  const unknownPrintJobs = initialPrintJobs.filter((p) => p.status === 'UNKNOWN');
+  const pendingTransactions = transactions.filter((t) => t.payment_status === 'PENDING');
+  const completedSessions = sessions.filter((s) => s.session_status === 'COMPLETED');
+  const unknownPrintJobs: any[] = [];
   const onlineBooths = initialBooths.filter((b) => b.status === 'ONLINE');
 
   return (
@@ -136,7 +167,7 @@ export default function OverviewPage() {
             </div>
             <div className="mt-3">
               <div className="text-2xl font-bold font-headline text-content-primary">
-                {initialSessions.length} Sesi
+                {completedSessions.length} Sesi
               </div>
               <div className="flex items-center gap-1.5 mt-1 text-[11px] text-content-secondary">
                 <Clock className="w-3 h-3" />
@@ -218,36 +249,44 @@ export default function OverviewPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {initialTransactions.map((trx) => (
-                      <tr key={trx.id} className="hover:bg-canvas/40 transition-colors">
-                        <td className="py-3 px-3 font-mono font-medium text-content-primary">
-                          {trx.transaction_number}
-                        </td>
-                        <td className="py-3 px-3 text-content-secondary">
-                          {formatDateId(trx.created_at)}
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="font-medium text-content-primary">
-                            {trx.payment_method === 'PREPAID_TICKET'
-                              ? 'Tiket Prabayar'
-                              : trx.payment_method === 'VOUCHER_100'
-                              ? 'Voucher 100%'
-                              : trx.payment_method}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3">
-                          <Badge
-                            variant={trx.payment_status === 'PAID' ? 'success' : 'warning'}
-                            dot
-                          >
-                            {trx.payment_status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono font-bold text-content-primary">
-                          {formatRupiah(trx.payable_amount)}
+                    {transactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-content-muted text-xs">
+                          Belum ada transaksi tercatat di sistem.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      transactions.slice(0, 5).map((trx) => (
+                        <tr key={trx.id} className="hover:bg-canvas/40 transition-colors">
+                          <td className="py-3 px-3 font-mono font-medium text-content-primary">
+                            {trx.transaction_number}
+                          </td>
+                          <td className="py-3 px-3 text-content-secondary">
+                            {formatDateId(trx.created_at)}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="font-medium text-content-primary">
+                              {trx.payment_method === 'PREPAID_TICKET'
+                                ? 'Tiket Prabayar'
+                                : trx.payment_method === 'VOUCHER_100'
+                                ? 'Voucher 100%'
+                                : trx.payment_method}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge
+                              variant={trx.payment_status === 'PAID' ? 'success' : 'warning'}
+                              dot
+                            >
+                              {trx.payment_status}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-content-primary">
+                            {formatRupiah(trx.payable_amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Receipt,
@@ -14,6 +14,7 @@ import {
   FileText,
   X,
   ShieldCheck,
+  Loader2,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -22,11 +23,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { formatRupiah, formatDateId } from '@/lib/utils';
-import { initialTransactions, initialBooths } from '@/lib/data/mock-data';
 import { Transaction, PaymentStatusType, PaymentMethodType } from '@/types/database.types';
 
 export default function TransactionsPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
@@ -37,6 +38,24 @@ export default function TransactionsPage() {
   // Correction Modal state
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [correctionReason, setCorrectionReason] = useState('');
+
+  useEffect(() => {
+    const fetchTrx = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/transactions');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.transactions)) {
+          setTransactions(data.transactions);
+        }
+      } catch (err) {
+        console.error('Failed to load transactions:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTrx();
+  }, []);
 
   // Filtering
   const filteredTrx = transactions.filter((trx) => {
@@ -57,7 +76,7 @@ export default function TransactionsPage() {
       t.payment_method,
       t.payment_status,
       t.payable_amount,
-      initialBooths.find((b) => b.id === t.booth_id)?.name || t.booth_id,
+      t.booth_id || 'Mobile Rig #1',
     ]);
 
     const csvContent =
@@ -174,61 +193,78 @@ export default function TransactionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredTrx.map((trx) => (
-                  <tr
-                    key={trx.id}
-                    className={`hover:bg-canvas/40 transition-colors cursor-pointer ${
-                      selectedTrx?.id === trx.id ? 'bg-canvas-alt' : ''
-                    }`}
-                    onClick={() => setSelectedTrx(trx)}
-                  >
-                    <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
-                      {trx.transaction_number}
-                    </td>
-                    <td className="py-3.5 px-4 text-content-secondary">
-                      {formatDateId(trx.created_at)}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-[11px] text-content-muted">
-                      {trx.customer_ref || 'ANONYMOUS'}
-                    </td>
-                    <td className="py-3.5 px-4 font-medium text-content-primary">
-                      {trx.payment_method === 'PREPAID_TICKET'
-                        ? 'Tiket Prabayar'
-                        : trx.payment_method === 'VOUCHER_100'
-                        ? 'Voucher 100%'
-                        : trx.payment_method}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge
-                        variant={
-                          trx.payment_status === 'PAID'
-                            ? 'success'
-                            : trx.payment_status === 'PENDING'
-                            ? 'warning'
-                            : 'error'
-                        }
-                        dot
-                      >
-                        {trx.payment_status}
-                      </Badge>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-bold text-content-primary">
-                      {formatRupiah(trx.payable_amount)}
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedTrx(trx);
-                        }}
-                      >
-                        Detail
-                      </Button>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-content-muted">
+                      <div className="flex flex-col items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-brand animate-spin mb-2" />
+                        <span>Memuat data transaksi...</span>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                ) : filteredTrx.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-content-muted text-xs">
+                      Belum ada riwayat transaksi di sistem.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTrx.map((trx) => (
+                    <tr
+                      key={trx.id}
+                      className={`hover:bg-canvas/40 transition-colors cursor-pointer ${
+                        selectedTrx?.id === trx.id ? 'bg-canvas-alt' : ''
+                      }`}
+                      onClick={() => setSelectedTrx(trx)}
+                    >
+                      <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
+                        {trx.transaction_number}
+                      </td>
+                      <td className="py-3.5 px-4 text-content-secondary">
+                        {formatDateId(trx.created_at)}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-[11px] text-content-muted">
+                        {trx.customer_ref || 'ANONYMOUS'}
+                      </td>
+                      <td className="py-3.5 px-4 font-medium text-content-primary">
+                        {trx.payment_method === 'PREPAID_TICKET'
+                          ? 'Tiket Prabayar'
+                          : trx.payment_method === 'VOUCHER_100'
+                          ? 'Voucher 100%'
+                          : trx.payment_method}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <Badge
+                          variant={
+                            trx.payment_status === 'PAID'
+                              ? 'success'
+                              : trx.payment_status === 'PENDING'
+                              ? 'warning'
+                              : 'error'
+                          }
+                          dot
+                        >
+                          {trx.payment_status}
+                        </Badge>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-content-primary">
+                        {formatRupiah(trx.payable_amount)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTrx(trx);
+                          }}
+                        >
+                          Detail
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

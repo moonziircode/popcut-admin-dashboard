@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Camera,
@@ -15,19 +15,38 @@ import {
   ChevronRight,
   X,
   FileCheck,
+  Loader2,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatDateId, formatRupiah } from '@/lib/utils';
-import { initialSessions, initialBooths } from '@/lib/data/mock-data';
 import { Session } from '@/types/database.types';
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState<Session[]>(initialSessions);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isPhotoUnlocked, setIsPhotoUnlocked] = useState(false);
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/sessions');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.sessions)) {
+          setSessions(data.sessions);
+        }
+      } catch (err) {
+        console.error('Failed to load sessions:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSessions();
+  }, []);
 
   return (
     <AppShell
@@ -64,59 +83,76 @@ export default function SessionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {sessions.map((ses) => (
-                  <tr
-                    key={ses.id}
-                    className="hover:bg-canvas/30 transition-colors cursor-pointer"
-                    onClick={() => {
-                      setSelectedSession(ses);
-                      setIsPhotoUnlocked(false);
-                    }}
-                  >
-                    <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
-                      {ses.session_number}
-                    </td>
-                    <td className="py-3.5 px-4 text-content-secondary">
-                      {formatDateId(ses.started_at)}
-                    </td>
-                    <td className="py-3.5 px-4 font-medium text-content-primary">
-                      {ses.package_snapshot.name}
-                    </td>
-                    <td className="py-3.5 px-4 text-content-secondary">
-                      {initialBooths.find((b) => b.id === ses.booth_id)?.name || ses.booth_id}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge variant={ses.session_status === 'COMPLETED' ? 'success' : 'warning'} dot>
-                        {ses.session_status}
-                      </Badge>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="flex items-center gap-1 font-medium text-content-primary">
-                        <Printer className="w-3.5 h-3.5 text-emerald-600" />
-                        {ses.print_status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="flex items-center gap-1 text-content-secondary">
-                        <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
-                        {ses.gallery_status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedSession(ses);
-                          setIsPhotoUnlocked(false);
-                        }}
-                      >
-                        Timeline
-                      </Button>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-content-muted">
+                      <div className="flex flex-col items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-brand animate-spin mb-2" />
+                        <span>Memuat sesi foto...</span>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                ) : sessions.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-content-muted text-xs">
+                      Belum ada sesi foto yang tercatat di sistem.
+                    </td>
+                  </tr>
+                ) : (
+                  sessions.map((ses) => (
+                    <tr
+                      key={ses.id}
+                      className="hover:bg-canvas/30 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setSelectedSession(ses);
+                        setIsPhotoUnlocked(false);
+                      }}
+                    >
+                      <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
+                        {ses.session_number}
+                      </td>
+                      <td className="py-3.5 px-4 text-content-secondary">
+                        {formatDateId(ses.started_at)}
+                      </td>
+                      <td className="py-3.5 px-4 font-medium text-content-primary">
+                        {ses.package_snapshot?.name || 'Paket Standar'}
+                      </td>
+                      <td className="py-3.5 px-4 text-content-secondary">
+                        Mobile Rig #1
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <Badge variant={ses.session_status === 'COMPLETED' ? 'success' : 'warning'} dot>
+                          {ses.session_status}
+                        </Badge>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="flex items-center gap-1 font-medium text-content-primary">
+                          <Printer className="w-3.5 h-3.5 text-emerald-600" />
+                          {ses.print_status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="flex items-center gap-1 text-content-secondary">
+                          <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                          {ses.gallery_status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSession(ses);
+                            setIsPhotoUnlocked(false);
+                          }}
+                        >
+                          Timeline
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -49,63 +49,10 @@ export default function PromotionsPage() {
   const [activeTab, setActiveTab] = useState<'vouchers' | 'tickets'>('vouchers');
 
   // Vouchers state
-  const [promotions, setPromotions] = useState<PromotionItem[]>([
-    {
-      id: 'p-1',
-      name: 'Promo Valentine 100% Free',
-      code: 'VOUCH-FREE100-VAL',
-      discount_type: 'FREE_100',
-      discount_value: 100,
-      usage_count: 8,
-      max_uses: 20,
-      valid_until: '2026-12-31T23:59:59Z',
-      is_active: true,
-    },
-    {
-      id: 'p-2',
-      name: 'Diskon Soft Launching Senopati',
-      code: 'POPCUT-SENOPATI10K',
-      discount_type: 'FIXED_AMOUNT',
-      discount_value: 10000,
-      usage_count: 42,
-      max_uses: 100,
-      valid_until: '2026-11-30T23:59:59Z',
-      is_active: true,
-    },
-    {
-      id: 'p-3',
-      name: 'Diskon 20% Follower Instagram',
-      code: 'POPCUTIG20',
-      discount_type: 'PERCENTAGE',
-      discount_value: 20,
-      usage_count: 15,
-      max_uses: 50,
-      valid_until: '2026-12-15T23:59:59Z',
-      is_active: true,
-    },
-  ]);
+  const [promotions, setPromotions] = useState<PromotionItem[]>([]);
 
   // Prepaid Batches state
-  const [batches, setBatches] = useState<PrepaidBatchItem[]>([
-    {
-      id: 'pb-1',
-      batch_name: 'Tiket Korporat PT Bintang Megah',
-      package_name: 'Regular Duo (Rp35.000)',
-      total_quantity: 50,
-      available_quantity: 38,
-      used_quantity: 12,
-      valid_until: '2026-12-31T23:59:59Z',
-    },
-    {
-      id: 'pb-2',
-      batch_name: 'Tiket Event Wedding Amanda & Kevin',
-      package_name: 'Premium Postcard (Rp50.000)',
-      total_quantity: 100,
-      available_quantity: 94,
-      used_quantity: 6,
-      valid_until: '2026-11-20T23:59:59Z',
-    },
-  ]);
+  const [batches, setBatches] = useState<PrepaidBatchItem[]>([]);
 
   // Create Voucher Modal state
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
@@ -227,44 +174,52 @@ export default function PromotionsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {promotions.map((p) => (
-                    <tr key={p.id} className="hover:bg-canvas/30 transition-colors">
-                      <td className="py-3.5 px-4 font-semibold text-content-primary">
-                        {p.name}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
-                        <span className="bg-canvas border border-border px-2 py-0.5 rounded">
-                          {p.code}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-content-secondary">
-                        {p.discount_type === 'FREE_100'
-                          ? '100% Gratis'
-                          : p.discount_type === 'PERCENTAGE'
-                          ? 'Persentase (%)'
-                          : 'Nominal Tetap (Rp)'}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
-                        {p.discount_type === 'FREE_100'
-                          ? 'Gratis Sesi'
-                          : p.discount_type === 'PERCENTAGE'
-                          ? `${p.discount_value}%`
-                          : formatRupiah(p.discount_value)}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono">
-                        <span className="text-content-primary font-semibold">{p.usage_count}</span>
-                        <span className="text-content-muted"> / {p.max_uses}</span>
-                      </td>
-                      <td className="py-3.5 px-4 text-content-secondary text-[11px]">
-                        {formatDateId(p.valid_until)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <Badge variant={p.is_active ? 'success' : 'neutral'} dot>
-                          {p.is_active ? 'Aktif' : 'Nonaktif'}
-                        </Badge>
+                  {promotions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-content-muted text-xs">
+                        Belum ada kode voucher aktif. Klik tombol di atas untuk membuat voucher baru.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    promotions.map((p) => (
+                      <tr key={p.id} className="hover:bg-canvas/30 transition-colors">
+                        <td className="py-3.5 px-4 font-semibold text-content-primary">
+                          {p.name}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
+                          <span className="bg-canvas border border-border px-2 py-0.5 rounded">
+                            {p.code}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-content-secondary">
+                          {p.discount_type === 'FREE_100'
+                            ? '100% Gratis'
+                            : p.discount_type === 'PERCENTAGE'
+                            ? 'Persentase (%)'
+                            : 'Nominal Tetap (Rp)'}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
+                          {p.discount_type === 'FREE_100'
+                            ? 'Gratis Sesi'
+                            : p.discount_type === 'PERCENTAGE'
+                            ? `${p.discount_value}%`
+                            : formatRupiah(p.discount_value)}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono">
+                          <span className="text-content-primary font-semibold">{p.usage_count}</span>
+                          <span className="text-content-muted"> / {p.max_uses}</span>
+                        </td>
+                        <td className="py-3.5 px-4 text-content-secondary text-[11px]">
+                          {formatDateId(p.valid_until)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Badge variant={p.is_active ? 'success' : 'neutral'} dot>
+                            {p.is_active ? 'Aktif' : 'Nonaktif'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -289,34 +244,42 @@ export default function PromotionsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {batches.map((b) => (
-                      <tr key={b.id} className="hover:bg-canvas/30 transition-colors">
-                        <td className="py-3.5 px-4 font-semibold text-content-primary">
-                          {b.batch_name}
-                        </td>
-                        <td className="py-3.5 px-4 font-medium text-content-primary">
-                          {b.package_name}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
-                          {b.total_quantity}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-emerald-700 font-bold">
-                          {b.available_quantity}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-content-secondary">
-                          {b.used_quantity}
-                        </td>
-                        <td className="py-3.5 px-4 text-content-secondary text-[11px]">
-                          {formatDateId(b.valid_until)}
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <Button variant="secondary" size="sm" className="gap-1 text-xs">
-                            <Download className="w-3 h-3" />
-                            Ekspor CSV
-                          </Button>
+                    {batches.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-content-muted text-xs">
+                          Belum ada batch tiket prabayar yang diterbitkan.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      batches.map((b) => (
+                        <tr key={b.id} className="hover:bg-canvas/30 transition-colors">
+                          <td className="py-3.5 px-4 font-semibold text-content-primary">
+                            {b.batch_name}
+                          </td>
+                          <td className="py-3.5 px-4 font-medium text-content-primary">
+                            {b.package_name}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
+                            {b.total_quantity}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-emerald-700 font-bold">
+                            {b.available_quantity}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-content-secondary">
+                            {b.used_quantity}
+                          </td>
+                          <td className="py-3.5 px-4 text-content-secondary text-[11px]">
+                            {formatDateId(b.valid_until)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <Button variant="secondary" size="sm" className="gap-1 text-xs">
+                              <Download className="w-3 h-3" />
+                              Ekspor CSV
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

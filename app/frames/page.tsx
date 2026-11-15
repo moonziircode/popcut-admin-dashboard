@@ -45,8 +45,8 @@ interface FrameItem {
 }
 
 export default function FramesPage() {
-  const [frames, setFrames] = useState<FrameItem[]>(initialFrames as any);
-  const [isLoading, setIsLoading] = useState(false);
+  const [frames, setFrames] = useState<FrameItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Upload Modal State
@@ -73,11 +73,11 @@ export default function FramesPage() {
       setIsLoading(true);
       const res = await fetch('/api/frames');
       const data = await res.json();
-      if (data.success && data.frames) {
+      if (data.success && Array.isArray(data.frames)) {
         setFrames(data.frames);
       }
     } catch (err) {
-      console.warn('Using initial frames fallback', err);
+      console.warn('Failed to load frames:', err);
     } finally {
       setIsLoading(false);
     }
@@ -320,80 +320,121 @@ export default function FramesPage() {
           ))}
         </div>
 
-        {/* 3. Visual Frames Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredFrames.map((frame) => (
-            <Card key={frame.id} className="p-0 overflow-hidden flex flex-col justify-between hoverable group">
-              {/* Thumbnail Display with Alpha Checkerboard Background */}
-              <div className="relative aspect-[2/3] bg-[linear-gradient(45deg,#eee_25%,transparent_25%),linear-gradient(-45deg,#eee_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#eee_75%),linear-gradient(-45deg,transparent_75%,#eee_75%)] bg-[size:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] flex items-center justify-center p-3 border-b border-border overflow-hidden">
-                {frame.asset_url ? (
-                  /* Real PNG Frame Image */
-                  <div className="relative w-full h-full flex items-center justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={frame.asset_url}
-                      alt={frame.name}
-                      className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-200 drop-shadow-sm"
-                    />
-                  </div>
-                ) : (
-                  /* Simulated Wireframe Frame */
-                  <div className="w-full h-full border-2 border-stone-800 bg-white/95 rounded p-3 flex flex-col justify-between shadow-subtle group-hover:scale-[1.02] transition-transform duration-200">
-                    <div className="space-y-1.5 flex-1 flex flex-col justify-center">
-                      <div className="bg-stone-200 border border-stone-300 rounded h-12 flex items-center justify-center text-[10px] text-stone-500 font-mono">
-                        Slot #1
+        {/* 3. Visual Frames Grid & Empty State */}
+        {isLoading ? (
+          <div className="py-20 flex flex-col items-center justify-center text-center">
+            <Loader2 className="w-8 h-8 text-brand animate-spin mb-3" />
+            <p className="text-xs text-content-secondary">Memuat pustaka bingkai foto...</p>
+          </div>
+        ) : filteredFrames.length === 0 ? (
+          <div className="py-16 px-4 bg-surface border-2 border-dashed border-border rounded-xl text-center max-w-lg mx-auto flex flex-col items-center">
+            <div className="w-14 h-14 rounded-full bg-canvas border border-border flex items-center justify-center mb-4 text-content-muted">
+              <Layers className="w-7 h-7 text-content-muted" />
+            </div>
+            <h3 className="text-sm font-bold text-content-primary font-headline">
+              Pustaka Bingkai Foto Masih Kosong
+            </h3>
+            <p className="text-xs text-content-secondary mt-1 leading-relaxed max-w-md">
+              Seluruh data bingkai telah dibersihkan sesuai instruksi. Anda dapat mengunggah file template PNG master (dengan transparansi atau AI Auto-Slot Detection) untuk membuat slot foto baru.
+            </p>
+            <div className="flex items-center gap-2 mt-5">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setUploadError(null);
+                  setSelectedFile(null);
+                  setPreviewUrl(null);
+                  setNewFrameName('');
+                  setIsUploadModalOpen(true);
+                }}
+                className="bg-brand text-brand-contrast hover:bg-brand-hover text-xs"
+              >
+                <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+                Unggah File PNG Sekarang
+              </Button>
+              <Link href="/frames/editor">
+                <Button variant="secondary" size="sm" className="text-xs">
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Buka Editor
+                </Button>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {filteredFrames.map((frame) => (
+              <Card key={frame.id} className="p-0 overflow-hidden flex flex-col justify-between hoverable group">
+                {/* Thumbnail Display with Alpha Checkerboard Background */}
+                <div className="relative aspect-[2/3] bg-[linear-gradient(45deg,#eee_25%,transparent_25%),linear-gradient(-45deg,#eee_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#eee_75%),linear-gradient(-45deg,transparent_75%,#eee_75%)] bg-[size:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] flex items-center justify-center p-3 border-b border-border overflow-hidden">
+                  {frame.asset_url ? (
+                    /* Real PNG Frame Image */
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={frame.asset_url}
+                        alt={frame.name}
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-200 drop-shadow-sm"
+                      />
+                    </div>
+                  ) : (
+                    /* Simulated Wireframe Frame */
+                    <div className="w-full h-full border-2 border-stone-800 bg-white/95 rounded p-3 flex flex-col justify-between shadow-subtle group-hover:scale-[1.02] transition-transform duration-200">
+                      <div className="space-y-1.5 flex-1 flex flex-col justify-center">
+                        <div className="bg-stone-200 border border-stone-300 rounded h-12 flex items-center justify-center text-[10px] text-stone-500 font-mono">
+                          Slot #1
+                        </div>
+                        <div className="bg-stone-200 border border-stone-300 rounded h-12 flex items-center justify-center text-[10px] text-stone-500 font-mono">
+                          Slot #2
+                        </div>
+                        <div className="bg-stone-200 border border-stone-300 rounded h-12 flex items-center justify-center text-[10px] text-stone-500 font-mono">
+                          Slot #3
+                        </div>
                       </div>
-                      <div className="bg-stone-200 border border-stone-300 rounded h-12 flex items-center justify-center text-[10px] text-stone-500 font-mono">
-                        Slot #2
-                      </div>
-                      <div className="bg-stone-200 border border-stone-300 rounded h-12 flex items-center justify-center text-[10px] text-stone-500 font-mono">
-                        Slot #3
+                      <div className="text-center pt-2">
+                        <span className="font-headline font-bold text-[10px] tracking-widest text-stone-800 uppercase">
+                          POPCUT.ID
+                        </span>
                       </div>
                     </div>
-                    <div className="text-center pt-2">
-                      <span className="font-headline font-bold text-[10px] tracking-widest text-stone-800 uppercase">
-                        POPCUT.ID
-                      </span>
+                  )}
+
+                  <div className="absolute top-2.5 right-2.5">
+                    <Badge variant={frame.status === 'PUBLISHED' ? 'brand' : 'neutral'}>
+                      {frame.status === 'PUBLISHED' ? 'Published' : 'Draft'}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Card Meta & Actions */}
+                <div className="p-4 space-y-3">
+                  <div>
+                    <span className="font-mono text-[10px] text-content-muted">{frame.internal_code}</span>
+                    <h3 className="text-xs font-bold text-content-primary font-headline mt-0.5 truncate">
+                      {frame.name}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-content-secondary">
+                      <span>Format: {frame.dimensions}</span>
+                      <span>•</span>
+                      <span>Rasio {frame.aspect_ratio}</span>
                     </div>
                   </div>
-                )}
 
-                <div className="absolute top-2.5 right-2.5">
-                  <Badge variant={frame.status === 'PUBLISHED' ? 'brand' : 'neutral'}>
-                    {frame.status === 'PUBLISHED' ? 'Published' : 'Draft'}
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Card Meta & Actions */}
-              <div className="p-4 space-y-3">
-                <div>
-                  <span className="font-mono text-[10px] text-content-muted">{frame.internal_code}</span>
-                  <h3 className="text-xs font-bold text-content-primary font-headline mt-0.5 truncate">
-                    {frame.name}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-1 text-[11px] text-content-secondary">
-                    <span>Format: {frame.dimensions}</span>
-                    <span>•</span>
-                    <span>Rasio {frame.aspect_ratio}</span>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-border flex items-center justify-between gap-1">
-                  <Link href={`/frames/editor?id=${frame.id}`} className="flex-1">
-                    <Button variant="secondary" size="sm" className="w-full text-xs gap-1">
-                      <Edit3 className="w-3 h-3" />
-                      Edit Slot
+                  <div className="pt-2 border-t border-border flex items-center justify-between gap-1">
+                    <Link href={`/frames/editor?id=${frame.id}`} className="flex-1">
+                      <Button variant="secondary" size="sm" className="w-full text-xs gap-1">
+                        <Edit3 className="w-3 h-3" />
+                        Edit Slot
+                      </Button>
+                    </Link>
+                    <Button variant="ghost" size="sm" title="Arsipkan">
+                      <Archive className="w-3.5 h-3.5 text-content-muted hover:text-status-error" />
                     </Button>
-                  </Link>
-                  <Button variant="ghost" size="sm" title="Arsipkan">
-                    <Archive className="w-3.5 h-3.5 text-content-muted hover:text-status-error" />
-                  </Button>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+              </Card>
+            ))}
+          </div>
+        )}
 
         {/* 4. Upload Frame Modal (Fully Interactive) */}
         <Modal

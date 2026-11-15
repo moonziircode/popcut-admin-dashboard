@@ -39,12 +39,20 @@ export async function GET() {
       `)
       .order('created_at', { ascending: false });
 
-    if (error || !dbFrames || dbFrames.length === 0) {
-      // Fallback to initial mock frames if DB empty or error
+    if (error) {
+      console.error('Error querying frames from database:', error);
       return NextResponse.json({
         success: true,
-        frames: initialFrames,
-        source: 'mock',
+        frames: [],
+        source: 'database_empty',
+      });
+    }
+
+    if (!dbFrames || dbFrames.length === 0) {
+      return NextResponse.json({
+        success: true,
+        frames: [],
+        source: 'database_empty',
       });
     }
 
@@ -83,8 +91,8 @@ export async function GET() {
     console.error('Error fetching frames:', err);
     return NextResponse.json({
       success: true,
-      frames: initialFrames,
-      source: 'fallback',
+      frames: [],
+      source: 'error_fallback',
     });
   }
 }

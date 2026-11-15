@@ -34,42 +34,7 @@ interface GalleryItem {
 }
 
 export default function GalleriesPage() {
-  const [galleries, setGalleries] = useState<GalleryItem[]>([
-    {
-      id: 'gal-001',
-      session_number: 'SES-20261115-0044',
-      booth_name: 'Popcut Grand Indonesia Lt. 2',
-      qr_token: 'popcut-tok-789a2bc4',
-      file_count: 5, // 4 photos + 1 rendered strip
-      upload_status: 'AVAILABLE',
-      download_count: 3,
-      available_at: '2026-11-15T01:37:02Z',
-      expires_at: '2026-11-29T23:59:59Z',
-    },
-    {
-      id: 'gal-002',
-      session_number: 'SES-20261115-0043',
-      booth_name: 'Popcut Studio Central',
-      qr_token: 'popcut-tok-441f90ee',
-      file_count: 7, // 6 photos + 1 postcard
-      upload_status: 'AVAILABLE',
-      download_count: 1,
-      available_at: '2026-11-15T01:26:30Z',
-      expires_at: '2026-11-29T23:59:59Z',
-    },
-    {
-      id: 'gal-003',
-      session_number: 'SES-20261115-0042',
-      booth_name: 'Popcut PIM 3 Lt. LG',
-      qr_token: 'popcut-tok-118c77aa',
-      file_count: 4,
-      upload_status: 'AVAILABLE',
-      download_count: 0,
-      available_at: '2026-11-15T01:07:45Z',
-      expires_at: '2026-11-29T23:59:59Z',
-    },
-  ]);
-
+  const [galleries, setGalleries] = useState<GalleryItem[]>([]);
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -121,41 +86,49 @@ export default function GalleriesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {galleries.map((gal) => (
-                  <tr key={gal.id} className="hover:bg-canvas/30 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
-                      {gal.session_number}
-                    </td>
-                    <td className="py-3.5 px-4 text-content-secondary font-medium">
-                      {gal.booth_name}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono">
-                      {gal.file_count} File (Foto & Strip)
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge variant={gal.upload_status === 'AVAILABLE' ? 'success' : 'warning'} dot>
-                        {gal.upload_status}
-                      </Badge>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-content-primary">
-                      {gal.download_count}x diunduh
-                    </td>
-                    <td className="py-3.5 px-4 text-content-secondary text-[11px]">
-                      Hingga {formatDateId(gal.expires_at)}
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setSelectedGallery(gal)}
-                        className="gap-1 text-xs"
-                      >
-                        <QrCode className="w-3.5 h-3.5" />
-                        Akses QR
-                      </Button>
+                {galleries.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-content-muted text-xs">
+                      Belum ada galeri digital cloud yang terdaftar.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  galleries.map((gal) => (
+                    <tr key={gal.id} className="hover:bg-canvas/30 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-content-primary">
+                        {gal.session_number}
+                      </td>
+                      <td className="py-3.5 px-4 text-content-secondary font-medium">
+                        {gal.booth_name}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono">
+                        {gal.file_count} File (Foto & Strip)
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <Badge variant={gal.upload_status === 'AVAILABLE' ? 'success' : 'warning'} dot>
+                          {gal.upload_status}
+                        </Badge>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-content-primary">
+                        {gal.download_count}x diunduh
+                      </td>
+                      <td className="py-3.5 px-4 text-content-secondary text-[11px]">
+                        Hingga {formatDateId(gal.expires_at)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setSelectedGallery(gal)}
+                          className="gap-1 text-xs"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          Akses QR
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

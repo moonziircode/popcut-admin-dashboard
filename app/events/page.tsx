@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   CalendarDays,
@@ -21,6 +21,8 @@ import {
   Filter,
   StopCircle,
   AlertCircle,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -28,19 +30,22 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
-import { initialEvents, initialPackages, initialFrames, initialBooths } from '@/lib/data/mock-data';
+import { initialPackages, initialFrames, initialBooths } from '@/lib/data/mock-data';
 import { PhotoboothEvent } from '@/types/database.types';
 
 export default function EventsPage() {
-  const [events, setEvents] = useState<PhotoboothEvent[]>(initialEvents);
+  const [events, setEvents] = useState<PhotoboothEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [targetEventToActivate, setTargetEventToActivate] = useState<PhotoboothEvent | null>(null);
   const [targetEventToDeactivate, setTargetEventToDeactivate] = useState<PhotoboothEvent | null>(null);
+  const [eventToDelete, setEventToDelete] = useState<PhotoboothEvent | null>(null);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -52,76 +57,153 @@ export default function EventsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [welcomeGreeting, setWelcomeGreeting] = useState('');
-  const [selectedPackages, setSelectedPackages] = useState<string[]>(['pkg-001', 'pkg-002']);
-  const [selectedFrames, setSelectedFrames] = useState<string[]>(['frame-001', 'frame-002']);
+  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  const [selectedFrames, setSelectedFrames] = useState<string[]>([]);
+
+  // Fetch events from backend API on mount
+  const loadEvents = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/events');
+      const data = await res.json();
+      if (data && Array.isArray(data.events)) {
+        setEvents(data.events);
+      }
+    } catch (e) {
+      console.error('Failed to load events:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
 
   // Active event
   const activeEvent = events.find((e) => e.is_active) || null;
 
   // Handle Switch Active Event
-  const handleConfirmSwitchEvent = () => {
+  const handleConfirmSwitchEvent = async () => {
     if (!targetEventToActivate) return;
 
-    setEvents((prev) =>
-      prev.map((e) => ({
-        ...e,
-        is_active: e.id === targetEventToActivate.id,
-        status: e.id === targetEventToActivate.id ? 'ACTIVE' : e.status === 'ACTIVE' ? 'COMPLETED' : e.status,
-      }))
-    );
+    try {
+      const res = await fetch('/api/events', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: targetEventToActivate.id, action: 'ACTIVATE' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEvents((prev) =>
+          prev.map((e) => ({
+            ...e,
+            is_active: e.id === targetEventToActivate.id,
+            status: e.id === targetEventToActivate.id ? 'ACTIVE' : e.status === 'ACTIVE' ? 'COMPLETED' : e.status,
+          }))
+        );
+        setNotification(`Event "${targetEventToActivate.name}" kini AKTIF untuk Customer Application booth.`);
+      }
+    } catch (err) {
+      console.error('Failed to switch event:', err);
+    }
 
     setIsSwitchModalOpen(false);
-    setNotification(`Event "${targetEventToActivate.name}" berhasil diaktifkan ke Mobile Rig #1.`);
     setTargetEventToActivate(null);
   };
 
   // Handle Deactivate Active Event (Put booth to standby)
-  const handleConfirmDeactivateEvent = () => {
+  const handleConfirmDeactivateEvent = async () => {
     if (!targetEventToDeactivate) return;
 
-    setEvents((prev) =>
-      prev.map((e) => {
-        if (e.id === targetEventToDeactivate.id) {
-          return {
-            ...e,
-            is_active: false,
-            status: 'COMPLETED',
-            updated_at: new Date().toISOString(),
-          };
-        }
-        return e;
-      })
-    );
+    try {
+      const res = await fetch('/api/events', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: targetEventToDeactivate.id, action: 'DEACTIVATE' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEvents((prev) =>
+          prev.map((e) => {
+            if (e.id === targetEventToDeactivate.id) {
+              return {
+                ...e,
+                is_active: false,
+                status: 'COMPLETED',
+                updated_at: new Date().toISOString(),
+              };
+            }
+            return e;
+          })
+        );
+        setNotification(`Event "${targetEventToDeactivate.name}" telah dinonaktifkan. Armada kini dalam status Standby.`);
+      }
+    } catch (err) {
+      console.error('Failed to deactivate event:', err);
+    }
 
     setIsDeactivateModalOpen(false);
-    setNotification(`Event "${targetEventToDeactivate.name}" telah dinonaktifkan. Armada kini dalam status Standby.`);
     setTargetEventToDeactivate(null);
   };
 
+  // Handle Delete Event
+  const handleConfirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
+
+    try {
+      const res = await fetch(`/api/events?id=${eventToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEvents((prev) => prev.filter((e) => e.id !== eventToDelete.id));
+        setNotification(`Event "${eventToDelete.name}" berhasil dihapus.`);
+      } else {
+        alert(data.message || 'Gagal menghapus event.');
+      }
+    } catch (err) {
+      console.error('Failed to delete event:', err);
+    }
+
+    setIsDeleteModalOpen(false);
+    setEventToDelete(null);
+  };
+
   // Handle Create Event
-  const handleCreateEvent = (e: React.FormEvent) => {
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!eventName.trim() || !clientName.trim()) return;
 
-    const newEvt: PhotoboothEvent = {
-      id: `evt-${Date.now()}`,
-      internal_code: `EVT-${Date.now().toString().slice(-6)}`,
-      name: eventName.trim(),
-      client_name: clientName.trim(),
-      event_type: eventType,
-      venue: venue.trim() || 'Lokasi Klien',
-      start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
-      end_date: endDate ? new Date(endDate).toISOString() : new Date(Date.now() + 86400000).toISOString(),
-      is_active: false,
-      status: 'UPCOMING',
-      welcome_greeting: welcomeGreeting.trim() || `Selamat Datang di ${eventName}! Sentuh Layar untuk Mulai Foto`,
-      allowed_package_ids: selectedPackages,
-      allowed_frame_ids: selectedFrames,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    try {
+      const payload = {
+        name: eventName.trim(),
+        client_name: clientName.trim(),
+        event_type: eventType,
+        venue: venue.trim() || 'Lokasi Klien',
+        start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
+        end_date: endDate ? new Date(endDate).toISOString() : new Date(Date.now() + 86400000).toISOString(),
+        is_active: false,
+        welcome_greeting: welcomeGreeting.trim() || `Selamat Datang di ${eventName}! Sentuh Layar untuk Mulai Foto`,
+        allowed_package_ids: selectedPackages,
+        allowed_frame_ids: selectedFrames,
+      };
 
-    setEvents([newEvt, ...events]);
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+      if (result.success && result.event) {
+        setEvents((prev) => [result.event, ...prev]);
+        setNotification(`Event "${result.event.name}" berhasil dibuat dan tersimpan.`);
+      }
+    } catch (err) {
+      console.error('Failed to create event:', err);
+    }
+
     setIsCreateModalOpen(false);
 
     // Reset Form
@@ -379,84 +461,125 @@ export default function EventsPage() {
           ))}
         </div>
 
-        {/* 4. Events Catalog Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredEvents.map((evt) => {
-            const isCurActive = evt.is_active;
-            return (
-              <Card
-                key={evt.id}
-                className={`p-5 flex flex-col justify-between transition-all ${
-                  isCurActive ? 'border-2 border-brand bg-surface' : 'hover:border-border-strong'
-                }`}
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant={isCurActive ? 'brand' : evt.status === 'UPCOMING' ? 'info' : 'neutral'}>
-                      {evt.status}
-                    </Badge>
-                    <span className="text-[10px] font-mono text-content-muted">{evt.event_type}</span>
+        {/* 4. Events Catalog Grid & Empty State */}
+        {isLoading ? (
+          <div className="py-20 flex flex-col items-center justify-center text-center">
+            <Loader2 className="w-8 h-8 text-brand animate-spin mb-3" />
+            <p className="text-xs text-content-secondary">Memuat data event dari database...</p>
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          <div className="py-16 px-4 bg-surface border-2 border-dashed border-border rounded-xl text-center max-w-lg mx-auto flex flex-col items-center">
+            <div className="w-14 h-14 rounded-full bg-canvas border border-border flex items-center justify-center mb-4 text-content-muted">
+              <CalendarDays className="w-7 h-7 text-content-muted" />
+            </div>
+            <h3 className="text-sm font-bold text-content-primary font-headline">
+              Belum Ada Event Terdaftar
+            </h3>
+            <p className="text-xs text-content-secondary mt-1 leading-relaxed max-w-md">
+              Seluruh database operasional telah di-reset. Buat event pertama Anda untuk mengatur nama acara, klien, custom welcome greeting, paket, dan frame yang akan aktif di armada photobooth.
+            </p>
+            <Button
+              size="sm"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="mt-5 bg-brand text-brand-contrast hover:bg-brand-hover text-xs"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Buat Event Pertama Sekarang
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredEvents.map((evt) => {
+              const isCurActive = evt.is_active;
+              return (
+                <Card
+                  key={evt.id}
+                  className={`p-5 flex flex-col justify-between transition-all ${
+                    isCurActive ? 'border-2 border-brand bg-surface' : 'hover:border-border-strong'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Badge variant={isCurActive ? 'brand' : evt.status === 'UPCOMING' ? 'info' : 'neutral'}>
+                        {evt.status}
+                      </Badge>
+                      <span className="text-[10px] font-mono text-content-muted">{evt.event_type}</span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-bold font-headline text-content-primary line-clamp-1">
+                        {evt.name}
+                      </h4>
+                      <p className="text-xs text-content-secondary mt-0.5 line-clamp-1">
+                        {evt.client_name} • {evt.venue}
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded bg-canvas border border-border text-[11px] space-y-1">
+                      <div className="flex justify-between text-content-secondary">
+                        <span>Paket Tersedia:</span>
+                        <strong className="text-content-primary">{evt.allowed_package_ids.length} Paket</strong>
+                      </div>
+                      <div className="flex justify-between text-content-secondary">
+                        <span>Frame Khusus:</span>
+                        <strong className="text-content-primary">{evt.allowed_frame_ids.length} Frame</strong>
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <h4 className="text-sm font-bold font-headline text-content-primary line-clamp-1">
-                      {evt.name}
-                    </h4>
-                    <p className="text-xs text-content-secondary mt-0.5 line-clamp-1">
-                      {evt.client_name} • {evt.venue}
-                    </p>
+                  <div className="pt-4 border-t border-border mt-4 flex items-center justify-between gap-2">
+                    {isCurActive ? (
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Sedang Aktif di Kiosk
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 py-1 px-2.5 h-7"
+                          onClick={() => {
+                            setTargetEventToDeactivate(evt);
+                            setIsDeactivateModalOpen(true);
+                          }}
+                        >
+                          <StopCircle className="w-3 h-3 mr-1 text-red-500" />
+                          Akhiri Event
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 w-full">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="text-xs flex-1"
+                          onClick={() => {
+                            setTargetEventToActivate(evt);
+                            setIsSwitchModalOpen(true);
+                          }}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 mr-1 text-brand-dark" />
+                          Aktifkan di Booth
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2.5 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                          onClick={() => {
+                            setEventToDelete(evt);
+                            setIsDeleteModalOpen(true);
+                          }}
+                          title="Hapus Event"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
-
-                  <div className="p-2.5 rounded bg-canvas border border-border text-[11px] space-y-1">
-                    <div className="flex justify-between text-content-secondary">
-                      <span>Paket Tersedia:</span>
-                      <strong className="text-content-primary">{evt.allowed_package_ids.length} Paket</strong>
-                    </div>
-                    <div className="flex justify-between text-content-secondary">
-                      <span>Frame Khusus:</span>
-                      <strong className="text-content-primary">{evt.allowed_frame_ids.length} Frame</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-border mt-4 flex items-center justify-between gap-2">
-                  {isCurActive ? (
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Sedang Aktif di Kiosk
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 py-1 px-2.5 h-7"
-                        onClick={() => {
-                          setTargetEventToDeactivate(evt);
-                          setIsDeactivateModalOpen(true);
-                        }}
-                      >
-                        <StopCircle className="w-3 h-3 mr-1 text-red-500" />
-                        Akhiri Event
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="text-xs w-full"
-                      onClick={() => {
-                        setTargetEventToActivate(evt);
-                        setIsSwitchModalOpen(true);
-                      }}
-                    >
-                      <Sparkles className="w-3.5 h-3.5 mr-1 text-brand-dark" />
-                      Aktifkan di Booth
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
         {/* 5. MODAL: Buat Event Baru */}
         <Modal
@@ -681,6 +804,39 @@ export default function EventsPage() {
               <div>Jumlah Frame: <strong>{activeEvent?.allowed_frame_ids.length}</strong></div>
             </div>
           </div>
+        </Modal>
+
+        {/* 8. MODAL: Konfirmasi Hapus Event */}
+        <Modal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          title="Konfirmasi Hapus Event"
+          description="Tindakan ini akan menghapus data event dari sistem secara permanen."
+          cancelLabel="Batal"
+          confirmLabel="Ya, Hapus Event"
+          onConfirm={handleConfirmDeleteEvent}
+        >
+          {eventToDelete && (
+            <div className="space-y-4 text-xs text-content-secondary">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-950 space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-red-900">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  Peringatan Penghapusan Event
+                </div>
+                <p className="text-[11px] text-red-800 leading-relaxed">
+                  Apakah Anda yakin ingin menghapus event <strong className="font-semibold text-red-950">{eventToDelete.name}</strong>? Data event ini akan dihapus dari Supabase.
+                </p>
+              </div>
+
+              <div className="p-3 bg-surface border border-border rounded-lg space-y-1 text-content-primary">
+                <div className="text-[11px] text-content-muted">Event yang akan dihapus:</div>
+                <div className="font-bold text-sm font-headline text-red-700">{eventToDelete.name}</div>
+                <div className="text-[11px] text-content-secondary">
+                  Klien: {eventToDelete.client_name} • Venue: {eventToDelete.venue}
+                </div>
+              </div>
+            </div>
+          )}
         </Modal>
       </div>
     </AppShell>

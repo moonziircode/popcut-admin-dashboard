@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -11,24 +11,46 @@ import {
   Receipt,
   PieChart,
   MonitorDot,
+  Loader2,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatRupiah } from '@/lib/utils';
-import { initialTransactions, initialPackages, initialBooths } from '@/lib/data/mock-data';
+import { initialBooths } from '@/lib/data/mock-data';
+import { Transaction } from '@/types/database.types';
 
 export default function ReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | '7days' | 'month'>('today');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTrx = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/transactions');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.transactions)) {
+          setTransactions(data.transactions);
+        }
+      } catch (err) {
+        console.error('Failed to load report data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTrx();
+  }, []);
 
   // PRD Revenue Calculations:
   // ONLY PAID transactions count toward actual revenue
-  const paidTrx = initialTransactions.filter((t) => t.payment_status === 'PAID');
+  const paidTrx = transactions.filter((t) => t.payment_status === 'PAID');
   const totalRevenue = paidTrx.reduce((acc, t) => acc + t.payable_amount, 0);
   const totalSessions = paidTrx.length;
   const avgTicketSize = totalSessions > 0 ? Math.round(totalRevenue / totalSessions) : 0;
-  const additionalPrintRevenue = paidTrx.reduce((acc, t) => acc + t.additional_print_amount, 0);
+  const additionalPrintRevenue = paidTrx.reduce((acc, t) => acc + (t.additional_print_amount || 0), 0);
 
   const handleExportCSV = () => {
     const csvContent =
@@ -157,23 +179,25 @@ export default function ReportsPage() {
               <CardTitle>Performa Penjualan Paket</CardTitle>
             </CardHeader>
             <div className="space-y-4 text-xs">
-              {initialPackages.map((pkg, idx) => {
-                const count = idx === 0 ? 54 : idx === 1 ? 32 : idx === 2 ? 18 : 12;
-                const pct = idx === 0 ? 46 : idx === 1 ? 28 : idx === 2 ? 16 : 10;
-                return (
-                  <div key={pkg.id} className="space-y-1.5">
+              {transactions.length === 0 ? (
+                <p className="text-content-muted py-8 text-center">Belum ada data transaksi penjualan paket.</p>
+              ) : (
+                [
+                  { name: 'Regular Duo (2x6)', count: 0, pct: 0 },
+                ].map((pkg) => (
+                  <div key={pkg.name} className="space-y-1.5">
                     <div className="flex justify-between font-medium">
                       <span className="text-content-primary font-semibold">{pkg.name}</span>
                       <span className="font-mono text-content-secondary">
-                        {count} sesi ({pct}%)
+                        {pkg.count} sesi ({pkg.pct}%)
                       </span>
                     </div>
                     <div className="w-full bg-canvas-alt rounded-full h-2 overflow-hidden border border-border">
-                      <div className="bg-brand h-full rounded-full" style={{ width: `${pct}%` }} />
+                      <div className="bg-brand h-full rounded-full" style={{ width: `${pkg.pct}%` }} />
                     </div>
                   </div>
-                );
-              })}
+                ))
+              )}
             </div>
           </Card>
 
@@ -183,23 +207,27 @@ export default function ReportsPage() {
               <CardTitle>Komposisi Metode Pembayaran</CardTitle>
             </CardHeader>
             <div className="space-y-4 text-xs">
-              {[
-                { name: 'QRIS (Gopay, BCA, ShopeePay)', share: '68%', count: '94 Transaksi', color: 'bg-emerald-500' },
-                { name: 'Tunai di Kasir Booth', share: '18%', count: '25 Transaksi', color: 'bg-blue-500' },
-                { name: 'Tiket Prabayar (Event / Korporat)', share: '9%', count: '12 Klaim', color: 'bg-amber-500' },
-                { name: 'Voucher Promosi 100% Free', share: '5%', count: '7 Sesi', color: 'bg-purple-500' },
-              ].map((item) => (
-                <div key={item.name} className="p-3 rounded border border-border bg-canvas/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className={`w-3 h-3 rounded-full ${item.color}`} />
-                    <span className="font-semibold text-content-primary">{item.name}</span>
+              {transactions.length === 0 ? (
+                <p className="text-content-muted py-8 text-center">Belum ada transaksi pembayaran tercatat.</p>
+              ) : (
+                [
+                  { name: 'QRIS (Gopay, BCA, ShopeePay)', share: '0%', count: '0 Transaksi', color: 'bg-emerald-500' },
+                  { name: 'Tunai di Kasir Booth', share: '0%', count: '0 Transaksi', color: 'bg-blue-500' },
+                  { name: 'Tiket Prabayar (Event / Korporat)', share: '0%', count: '0 Klaim', color: 'bg-amber-500' },
+                  { name: 'Voucher Promosi 100% Free', share: '0%', count: '0 Sesi', color: 'bg-purple-500' },
+                ].map((item) => (
+                  <div key={item.name} className="p-3 rounded border border-border bg-canvas/30 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`w-3 h-3 rounded-full ${item.color}`} />
+                      <span className="font-semibold text-content-primary">{item.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold font-mono text-content-primary block">{item.share}</span>
+                      <span className="text-[10px] text-content-muted">{item.count}</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-bold font-mono text-content-primary block">{item.share}</span>
-                    <span className="text-[10px] text-content-muted">{item.count}</span>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </Card>
         </div>
