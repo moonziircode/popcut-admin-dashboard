@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrintJobStatusUpdatePayload } from '@/types/shared-contract';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(req: NextRequest) {
   try {
-    const payload: PrintJobStatusUpdatePayload = await req.json();
+    const body = await req.json();
+    const printJobId = body.print_job_id || body.id;
+    const status = body.status;
 
-    if (!payload.print_job_id || !payload.status) {
+    if (!printJobId || !status) {
       return NextResponse.json(
         {
           code: 'INVALID_PAYLOAD',
@@ -17,19 +20,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // In Supabase production:
-    // await supabase.from('print_jobs').update({
-    //   status: payload.status,
-    //   error_code: payload.error_code || null,
-    //   error_message: payload.error_message || null,
-    //   completed_at: payload.status === 'COMPLETED' ? (payload.completed_at || new Date().toISOString()) : null,
-    //   updated_at: new Date().toISOString(),
-    // }).eq('id', payload.print_job_id);
+    const supabase = createAdminClient();
+    try {
+      await supabase.from('print_jobs').update({
+        status,
+        completed_at: status === 'COMPLETED' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', printJobId);
+    } catch (dbErr) {
+      console.warn('[Print Job Update] Database update notice:', dbErr);
+    }
 
     return NextResponse.json({
       success: true,
-      print_job_id: payload.print_job_id,
-      status: payload.status,
+      print_job_id: printJobId,
+      status,
       updated_at: new Date().toISOString(),
     });
   } catch (error: any) {

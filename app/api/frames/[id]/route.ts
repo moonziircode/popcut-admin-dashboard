@@ -136,12 +136,16 @@ export async function PUT(
     }
 
     // Log activity
-    await supabase.from('activity_logs').insert({
-      action_type: status === 'PUBLISHED' ? 'FRAME_PUBLISH' : 'FRAME_UPDATE',
-      entity_name: 'frames',
-      entity_id: id,
-      details: { slots_count: slots?.length, status },
-    });
+    try {
+      await supabase.from('activity_logs').insert({
+        action: status === 'PUBLISHED' ? 'FRAME_PUBLISH' : 'FRAME_UPDATE',
+        entity_type: 'FRAME',
+        entity_id: id,
+        description: `Frame ${name || id} diperbarui (${slots?.length || 0} slots)`,
+      });
+    } catch (logErr) {
+      console.warn('[Frame Update] Activity log warning:', logErr);
+    }
 
     return NextResponse.json({
       success: true,

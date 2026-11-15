@@ -249,19 +249,16 @@ export async function POST(request: NextRequest) {
     await supabase.from('frame_slots').insert(slotInserts);
 
     // 12. Audit log
-    await supabase.from('activity_logs').insert({
-      action_type: 'FRAME_CREATE',
-      entity_name: 'frames',
-      entity_id: frameId,
-      details: {
-        name,
-        dimensions,
-        file_size: file.size,
-        sha256,
-        has_alpha: hasAlpha,
-        resolution: `${imgWidth}x${imgHeight}`,
-      },
-    });
+    try {
+      await supabase.from('activity_logs').insert({
+        action: 'FRAME_CREATE',
+        entity_type: 'FRAME',
+        entity_id: frameId,
+        description: `Frame baru "${name}" berhasil diunggah (${imgWidth}x${imgHeight})`,
+      });
+    } catch (logErr) {
+      console.warn('[Frame Upload] Activity log warning:', logErr);
+    }
 
     return NextResponse.json({
       success: true,
