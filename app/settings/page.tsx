@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings as SettingsIcon,
   Building2,
@@ -39,26 +39,51 @@ export default function SettingsPage() {
 
   // Payment Form State
   const [paymentProvider, setPaymentProvider] = useState<'MIDTRANS' | 'XENDIT' | 'MOCK'>('MIDTRANS');
-  const [merchantId, setMerchantId] = useState('MID-POPCUT-PRODUCTION-01');
-  const [clientKey, setClientKey] = useState('Mid-client-AbCdEfGh12345');
-  const [serverKey, setServerKey] = useState('Mid-server-99xYzQ887162543');
-  const [webhookSecret, setWebhookSecret] = useState('whsec_popcut_live_998182736');
+  const [merchantId, setMerchantId] = useState('Popcut.id');
+  const [clientKey, setClientKey] = useState('Mid-client-2aA4MHqiqjjWz7V8');
+  const [serverKey, setServerKey] = useState('••••••••••••••••••••••••••••••••');
+  const [sandboxServerKey, setSandboxServerKey] = useState('••••••••••••••••••••••••••••••••');
+  const [webhookSecret, setWebhookSecret] = useState('••••••••••••••••••••••••••••••••');
   const [isSandbox, setIsSandbox] = useState(false);
   const [allowCashPayment, setAllowCashPayment] = useState(true);
   const [isTestingPing, setIsTestingPing] = useState(false);
-  const [pingResult, setPingResult] = useState<string | null>(null);
+  const [pingResult, setPingResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  const handleTestPing = () => {
+  useEffect(() => {
+    fetch('/api/payment/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.merchantId) setMerchantId(data.merchantId);
+        if (data.clientKey) setClientKey(data.clientKey);
+        if (data.serverKeyMasked) setServerKey(data.serverKeyMasked);
+        if (data.sandboxServerKeyMasked) setSandboxServerKey(data.sandboxServerKeyMasked);
+        if (data.isProduction !== undefined) setIsSandbox(!data.isProduction);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleTestPing = async () => {
     setIsTestingPing(true);
     setPingResult(null);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/payment/test-ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isProduction: !isSandbox }),
+      });
+      const data = await res.json();
+      setPingResult({
+        success: data.success,
+        message: data.message,
+      });
+    } catch (err: any) {
+      setPingResult({
+        success: false,
+        message: err.message || 'Gagal menghubungi server.',
+      });
+    } finally {
       setIsTestingPing(false);
-      setPingResult(
-        isSandbox
-          ? 'Koneksi Sandbox Berhasil (HTTP 200) — Simulator QRIS siap digunakan.'
-          : 'Koneksi Live Production Berhasil (HTTP 200) — Gateway Midtrans Snap & QRIS Aktif.'
-      );
-    }, 1000);
+    }
   };
 
   // Storage Form State
@@ -251,16 +276,26 @@ export default function SettingsPage() {
               </CardHeader>
               <div className="space-y-4 max-w-xl">
                 {pingResult && (
-                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2 animate-in fade-in">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>{pingResult}</span>
+                  <div
+                    className={`p-3 rounded-lg border text-xs flex items-start gap-2 animate-in fade-in ${
+                      pingResult.success
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                        : 'bg-rose-50 border-rose-200 text-rose-900'
+                    }`}
+                  >
+                    {pingResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    )}
+                    <span>{pingResult.message}</span>
                   </div>
                 )}
 
                 <div className="p-3 rounded bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
                   <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Pola Adapter Gateway:</strong> Admin Dashboard mendukung integrasi multi-provider (Midtrans & Xendit) serta mode Simulator Mock untuk testing offline booth tanpa biaya transaksi riil.
+                    <strong>Kredensial Midtrans Terhubung:</strong> Kredensial akun Midtrans Popcut.id (Production & Sandbox) telah terintegrasi secara aman dengan enkripsi server dan verifikasi signature SHA-512.
                   </span>
                 </div>
 
@@ -271,7 +306,7 @@ export default function SettingsPage() {
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { id: 'MIDTRANS', name: 'Midtrans (Snap & Core)' },
+                      { id: 'MIDTRANS', name: 'Midtrans (Snap & QRIS)' },
                       { id: 'XENDIT', name: 'Xendit Invoice' },
                       { id: 'MOCK', name: 'Mock Simulator (Offline)' },
                     ].map((p) => (
@@ -293,7 +328,7 @@ export default function SettingsPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <Input
-                    label="Merchant ID / Merchant Code"
+                    label="Merchant Name / Key Name"
                     value={merchantId}
                     onChange={(e) => setMerchantId(e.target.value)}
                     required
@@ -306,20 +341,52 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-content-primary mb-1">
-                    Server Key (Private / Secret)
-                  </label>
-                  <input
-                    type="password"
-                    value={serverKey}
-                    onChange={(e) => setServerKey(e.target.value)}
-                    className="w-full h-9 bg-surface border border-border rounded px-3 text-xs font-mono"
-                    required
-                  />
-                  <span className="text-[11px] text-content-muted mt-1 block">
-                    Digunakan untuk pembuatan transaksi pembayaran QRIS dan verifikasi signature.
-                  </span>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-content-primary">
+                        Production Server Key (Signature Secret Key)
+                      </label>
+                      {!isSandbox && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          SEDANG DIGUNAKAN (LIVE)
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="password"
+                      value={serverKey}
+                      onChange={(e) => setServerKey(e.target.value)}
+                      className="w-full h-9 bg-surface border border-border rounded px-3 text-xs font-mono"
+                      required
+                    />
+                    <span className="text-[11px] text-content-muted mt-1 block">
+                      Kunci server live untuk verifikasi transaksi pembayaran riil.
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-content-primary">
+                        Sandbox Server Key (Testing API Key)
+                      </label>
+                      {isSandbox && (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          SEDANG DIGUNAKAN (SANDBOX)
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="password"
+                      value={sandboxServerKey}
+                      onChange={(e) => setSandboxServerKey(e.target.value)}
+                      className="w-full h-9 bg-surface border border-border rounded px-3 text-xs font-mono"
+                      required
+                    />
+                    <span className="text-[11px] text-content-muted mt-1 block">
+                      Prefix <code className="font-mono text-content-primary">SB-</code> digunakan untuk simulasi transaksi booth tanpa uang riil.
+                    </span>
+                  </div>
                 </div>
 
                 {/* Webhook Endpoint & Secret */}

@@ -118,6 +118,8 @@ export interface CustomerSessionCreateResponse {
   payment_status: 'PAID' | 'PENDING';
   qris_payload?: string;
   qris_expires_at?: string;
+  snap_token?: string;
+  snap_redirect_url?: string;
 }
 
 export interface SessionTimelineUpdatePayload {
