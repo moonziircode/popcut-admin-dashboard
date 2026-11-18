@@ -36,12 +36,26 @@ export async function GET() {
     (rows || []).forEach((row) => {
       if (row.value && typeof row.value === 'object') {
         Object.assign(settingsMap, row.value);
+      } else if (row.key && row.value !== undefined) {
+        settingsMap[row.key] = row.value;
       }
     });
 
     return NextResponse.json({
       success: true,
-      settings: settingsMap,
+      settings: {
+        ...settingsMap,
+        kiosk: {
+          countdownTimer: Number(settingsMap.countdown_timer_seconds ?? settingsMap.kiosk_countdown_timer ?? 5),
+          idleTimeout: Number(settingsMap.idle_timeout_seconds ?? 60),
+          paymentTimeout: Number(settingsMap.payment_timeout_seconds ?? 180),
+          sessionDuration: Number(settingsMap.session_duration_minutes ?? 10),
+        },
+        business: {
+          companyName: settingsMap.business_name ?? 'Popcut.id Photobooth Studio',
+          supportEmail: settingsMap.contact_email ?? 'ops@popcut.id',
+        },
+      },
       raw: rows,
     });
   } catch (error: any) {
@@ -55,25 +69,32 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const supabase = createAdminClient();
 
+    const countdownTimer = Number(
+      body.countdown_timer_seconds ??
+      body.kiosk?.countdownTimer ??
+      body.kiosk?.countdown_timer_seconds ??
+      5
+    );
+
     const businessValues = {
-      business_name: body.business_name || 'Popcut.id Photobooth Studio',
+      business_name: body.business_name || body.business?.companyName || 'Popcut.id Photobooth Studio',
       brand_color: body.brand_color || '#D9E83F',
-      contact_email: body.contact_email || 'ops@popcut.id',
+      contact_email: body.contact_email || body.business?.supportEmail || 'ops@popcut.id',
       contact_phone: body.contact_phone || '+6281234567890',
       operating_city: body.operating_city || 'Jakarta',
       default_currency: body.default_currency || 'IDR',
     };
 
     const kioskValues = {
-      countdown_timer_seconds: Number(body.countdown_timer_seconds ?? 5),
-      idle_timeout_seconds: Number(body.idle_timeout_seconds ?? 60),
-      payment_timeout_seconds: Number(body.payment_timeout_seconds ?? 180),
-      session_duration_minutes: Number(body.session_duration_minutes ?? 10),
-      allow_retakes: Boolean(body.allow_retakes ?? true),
+      countdown_timer_seconds: countdownTimer,
+      idle_timeout_seconds: Number(body.idle_timeout_seconds ?? body.kiosk?.idleTimeout ?? 60),
+      payment_timeout_seconds: Number(body.payment_timeout_seconds ?? body.kiosk?.paymentTimeout ?? 180),
+      session_duration_minutes: Number(body.session_duration_minutes ?? body.kiosk?.sessionDuration ?? 10),
+      allow_retakes: Boolean(body.allow_retakes ?? body.kiosk?.allowRetakes ?? true),
       max_retakes_per_pose: Number(body.max_retakes_per_pose ?? 2),
       enable_live_photo: Boolean(body.enable_live_photo ?? true),
       paper_warning_threshold: Number(body.paper_warning_threshold ?? 20),
-      welcome_title: body.business_name || 'Popcut.id Photobooth',
+      welcome_title: body.welcome_title || body.business_name || 'Popcut.id Photobooth',
     };
 
     const storageValues = {
@@ -105,6 +126,17 @@ export async function POST(req: NextRequest) {
       { onConflict: 'key' }
     );
     if (kErr) throw kErr;
+
+    // Upsert individual kiosk_countdown_timer key for direct querying
+    await supabase.from('app_settings').upsert(
+      {
+        section: 'customer_app',
+        key: 'kiosk_countdown_timer',
+        value: countdownTimer,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'key' }
+    );
 
     // Upsert storage retention
     const { error: sErr } = await supabase.from('app_settings').upsert(

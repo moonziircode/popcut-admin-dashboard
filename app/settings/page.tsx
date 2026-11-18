@@ -406,7 +406,7 @@ export default function SettingsPage() {
                       <Lock className="w-3.5 h-3.5 text-brand" />
                       Kredensial Server Terproteksi (Read-Only)
                     </span>
-                    <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                    <Badge variant="neutral" className="text-[10px] uppercase font-mono">
                       Server-Side Only
                     </Badge>
                   </div>

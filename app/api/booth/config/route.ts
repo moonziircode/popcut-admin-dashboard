@@ -94,11 +94,15 @@ export async function GET(req: NextRequest) {
       
       const isLandscape = f.aspect_ratio === '3:2' || f.dimensions === '1800x1200';
       const canvasW = isLandscape ? 1800 : 1200;
-      const canvasH = isLandscape ? 1200 : 1800;
+      const targetCanvasH = isLandscape ? 1200 : 1800;
+
+      // Check raw slot coordinates to determine original pixel canvas space
+      const rawFrameSlots = (dbSlots || []).filter((s) => version && s.frame_version_id === version.id);
+      const maxRawY = Math.max(...rawFrameSlots.map((s) => Number(s.y_coord || 0) + Number(s.height || 0)), 0);
+      const sourcePixelH = isLandscape ? 1200 : (maxRawY > 1800 ? 3600 : 1800);
 
       // INT-006: Normalize slot coordinates to percentage if in absolute pixels
-      const slots = (dbSlots || [])
-        .filter((s) => version && s.frame_version_id === version.id)
+      const slots = rawFrameSlots
         .sort((a, b) => a.slot_index - b.slot_index)
         .map((s) => {
           let x = Number(s.x_coord || 0);
@@ -106,12 +110,18 @@ export async function GET(req: NextRequest) {
           let w = Number(s.width || 0);
           let h = Number(s.height || 0);
 
-          if (w > 100) {
+          if (w > 100 || h > 100) {
             x = Math.round(((x / canvasW) * 100) * 100) / 100;
-            y = Math.round(((y / canvasH) * 100) * 100) / 100;
+            y = Math.round(((y / sourcePixelH) * 100) * 100) / 100;
             w = Math.round(((w / canvasW) * 100) * 100) / 100;
-            h = Math.round(((h / canvasH) * 100) * 100) / 100;
+            h = Math.round(((h / sourcePixelH) * 100) * 100) / 100;
           }
+
+          // Enforce 0-100% boundary clamping
+          x = Math.min(100, Math.max(0, x));
+          y = Math.min(100, Math.max(0, y));
+          w = Math.min(100, Math.max(1, w));
+          h = Math.min(100, Math.max(1, h));
 
           return {
             id: s.id,
@@ -145,9 +155,12 @@ export async function GET(req: NextRequest) {
         category_name: cat?.name || 'Classic',
         dimensions: '4R',
         aspect_ratio: f.aspect_ratio || (isLandscape ? '3:2' : '2:3'),
+        canvas_width: canvasW,
+        canvas_height: targetCanvasH,
         current_version_id: version?.id || 'v1',
         preview_url: downloadUrl,
         asset_path: normalizedRelativePath,
+        overlay_url: normalizedRelativePath,
         checksum_sha256: version?.checksum_sha256 || '',
         is_archived: false,
         created_at: f.created_at || new Date().toISOString(),
@@ -188,10 +201,15 @@ export async function GET(req: NextRequest) {
         };
 
     const response: BoothConfigDeliveryResponse & Record<string, any> = {
+      success: true,
       schema_version: 1,
       config_version_id: activeEvent ? `cfg-${activeEvent.id.slice(0, 8)}` : 'cfg-standby',
       version_number: 'v2.4.2',
       booth_id: boothId,
+      booth: {
+        id: boothId,
+        code: boothId,
+      },
       published_at: new Date().toISOString(),
       event_id: eventInfo.event_id,
       event_name: eventInfo.event_name,

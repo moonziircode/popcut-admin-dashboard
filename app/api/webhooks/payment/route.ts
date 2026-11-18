@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       .update({
         payment_status: mappedStatus,
         paid_at: mappedStatus === 'PAID' ? (transaction_time || new Date().toISOString()) : null,
-        payment_gateway_ref: transaction_id || null,
+        provider_ref: transaction_id || null,
         updated_at: new Date().toISOString(),
       })
       .eq('transaction_number', order_id);
@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
+      success: true,
       status: 'OK',
       order_id,
       payment_status: mappedStatus,
