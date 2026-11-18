@@ -42,33 +42,52 @@ export async function middleware(request: NextRequest) {
   const hasCustomSession = Boolean(request.cookies.get('popcut_admin_user')?.value);
   const isAuthenticated = Boolean(user) || hasCustomSession;
 
-  // Define public paths that bypass auth check
+  // Define public web pages and public APIs that bypass auth check
   const isAuthPage = pathname === '/login';
   const isOfflinePage = pathname === '/offline';
-  const isPublicApi =
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/booth') ||
-    pathname.startsWith('/api/webhooks') ||
-    pathname.startsWith('/api/frames') ||
-    pathname.startsWith('/api/session') ||
-    pathname.startsWith('/api/sessions') ||
-    pathname.startsWith('/api/transaction') ||
-    pathname.startsWith('/api/transactions') ||
-    pathname.startsWith('/api/print-job') ||
-    pathname.startsWith('/api/print-jobs') ||
-    pathname.startsWith('/api/gallery') ||
-    pathname.startsWith('/api/galleries') ||
-    pathname.startsWith('/api/voucher') ||
-    pathname.startsWith('/api/ticket') ||
-    pathname.startsWith('/api/tickets') ||
-    pathname.startsWith('/api/events') ||
-    pathname.startsWith('/api/packages') ||
-    pathname.startsWith('/api/promotions') ||
-    pathname.startsWith('/api/storage') ||
-    pathname.startsWith('/api/payment');
+  const isPublicWebPage = isAuthPage || isOfflinePage || pathname.startsWith('/gallery/');
 
+  // Category A: Public Absolute APIs
+  const PUBLIC_API_ROUTES = [
+    '/api/auth/login',
+    '/api/auth/logout',
+    '/api/auth/me',
+    '/api/payment/verify',
+    '/api/webhooks/payment',
+    '/api/galleries',
+  ];
+  const isPublicApi = PUBLIC_API_ROUTES.some((route) => pathname.startsWith(route));
+
+  // Category B: Kiosk M2M Hardware (Booth Service APIs)
+  const KIOSK_API_ROUTES = [
+    '/api/booth',
+    '/api/session',
+    '/api/voucher/redeem',
+    '/api/ticket/redeem',
+    '/api/gallery/register',
+  ];
+  const isKioskApi = KIOSK_API_ROUTES.some((route) => pathname.startsWith(route));
+
+  // If Kiosk M2M route:
+  if (isKioskApi) {
+    const boothSecret = process.env.BOOTH_API_SECRET;
+    if (process.env.NODE_ENV === 'production' && boothSecret) {
+      const boothToken =
+        request.headers.get('x-booth-token') ||
+        request.headers.get('authorization')?.replace('Bearer ', '');
+      if (!boothToken || boothToken !== boothSecret) {
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized: Token kiosk x-booth-token tidak valid.' },
+          { status: 401 }
+        );
+      }
+    }
+    return response;
+  }
+
+  // Category C: Admin Internal (Strict Session / Token Auth)
   // If user is not authenticated:
-  if (!isAuthenticated && !isAuthPage && !isOfflinePage && !isPublicApi) {
+  if (!isAuthenticated && !isPublicWebPage && !isPublicApi) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized: Autentikasi sesi atau token API diperlukan.' },
