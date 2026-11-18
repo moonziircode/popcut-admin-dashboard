@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { formatDateId } from '@/lib/utils';
-import { initialPrintJobs, initialBooths } from '@/lib/data/mock-data';
 import { PrintJob } from '@/types/database.types';
 
 export default function PrintJobsPage() {
@@ -149,7 +148,7 @@ export default function PrintJobsPage() {
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-content-primary">
-                          {initialBooths.find((b) => b.id === job.booth_id)?.name || job.booth_id}
+                          {job.booth?.name || job.booth_id}
                         </div>
                         <span className="text-[11px] text-content-muted font-mono">
                           {job.printer_model || 'DNP RX1HS'}

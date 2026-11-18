@@ -24,11 +24,6 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
-import {
-  initialPrepaidBatches,
-  initialPrepaidTickets,
-  initialPackages,
-} from '@/lib/data/mock-data';
 import { PrepaidBatch, PrepaidTicket, Package } from '@/types/database.types';
 
 export default function TicketsPage() {

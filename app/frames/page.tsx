@@ -26,7 +26,6 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { initialFrames } from '@/lib/data/mock-data';
 import { analyzeImageAlpha, DetectedSlot } from '@/lib/utils/image-transparency';
 import { SmartTransparencyModal } from '@/components/frames/SmartTransparencyModal';
 

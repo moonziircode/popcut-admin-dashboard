@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { initialFrames } from '@/lib/data/mock-data';
 
 export async function GET() {
   try {

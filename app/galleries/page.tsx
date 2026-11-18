@@ -19,7 +19,6 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { formatDateId } from '@/lib/utils';
-import { initialBooths } from '@/lib/data/mock-data';
 
 interface GalleryItem {
   id: string;
