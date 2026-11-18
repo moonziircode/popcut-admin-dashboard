@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyMidtransSignatureAsync } from '@/lib/services/midtrans';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(req: NextRequest) {
   try {
@@ -73,13 +74,60 @@ export async function POST(req: NextRequest) {
       `[Midtrans Webhook Verified] Order: ${order_id}, Status: ${transaction_status} -> ${mappedStatus}, Type: ${payment_type}`
     );
 
-    // In Supabase production:
-    // await supabase.from('transactions').update({
-    //   payment_status: mappedStatus,
-    //   paid_at: mappedStatus === 'PAID' ? (transaction_time || new Date().toISOString()) : null,
-    //   payment_gateway_ref: transaction_id,
-    //   updated_at: new Date().toISOString(),
-    // }).eq('transaction_number', order_id);
+    // Persist to Supabase Database
+    const supabase = createAdminClient();
+
+    // 1. Find existing transaction
+    const { data: trx } = await supabase
+      .from('transactions')
+      .select('id, transaction_number')
+      .eq('transaction_number', order_id)
+      .maybeSingle();
+
+    // 2. Update transaction status
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({
+        payment_status: mappedStatus,
+        paid_at: mappedStatus === 'PAID' ? (transaction_time || new Date().toISOString()) : null,
+        payment_gateway_ref: transaction_id || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('transaction_number', order_id);
+
+    if (updateError) {
+      console.error('[Midtrans Webhook DB Update Error]', updateError);
+    }
+
+    // 3. Record audit event in payment_events if transaction exists
+    if (trx?.id) {
+      try {
+        await supabase.from('payment_events').insert({
+          transaction_id: trx.id,
+          event_type: `MIDTRANS_${(transaction_status || 'NOTIFICATION').toUpperCase()}`,
+          payload: notification,
+          received_at: new Date().toISOString(),
+        });
+      } catch (peErr) {
+        console.warn('[Midtrans Webhook] Failed to insert payment_events:', peErr);
+      }
+
+      // 4. Update linked session if payment settled
+      if (mappedStatus === 'PAID') {
+        try {
+          await supabase
+            .from('sessions')
+            .update({
+              payment_status: 'PAID',
+              session_status: 'READY',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('transaction_id', trx.id);
+        } catch (sessErr) {
+          console.warn('[Midtrans Webhook] Failed to update linked session:', sessErr);
+        }
+      }
+    }
 
     return NextResponse.json({
       status: 'OK',

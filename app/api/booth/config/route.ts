@@ -70,41 +70,71 @@ export async function GET(req: NextRequest) {
       promotion_codes: p.promotion_codes || [],
     }));
 
-    // Filter packages and frames for active event
+    // INT-003: Smart fallback for package filtering
     let eventPackages = dbPackages || [];
-    if (activeEvent && activeEvent.allowed_package_ids && activeEvent.allowed_package_ids.length > 0) {
-      eventPackages = eventPackages.filter((p) => activeEvent.allowed_package_ids.includes(p.id));
+    if (activeEvent && Array.isArray(activeEvent.allowed_package_ids) && activeEvent.allowed_package_ids.length > 0) {
+      const filtered = eventPackages.filter((p) => activeEvent.allowed_package_ids.includes(p.id));
+      if (filtered.length > 0) {
+        eventPackages = filtered;
+      }
     }
 
+    // Smart fallback for frame filtering
     let eventFrames = dbFrames || [];
-    if (activeEvent && activeEvent.allowed_frame_ids && activeEvent.allowed_frame_ids.length > 0) {
-      eventFrames = eventFrames.filter((f) => activeEvent.allowed_frame_ids.includes(f.id));
+    if (activeEvent && Array.isArray(activeEvent.allowed_frame_ids) && activeEvent.allowed_frame_ids.length > 0) {
+      const filtered = eventFrames.filter((f) => activeEvent.allowed_frame_ids.includes(f.id));
+      if (filtered.length > 0) {
+        eventFrames = filtered;
+      }
     }
 
     // Build frame objects with slots and asset metadata
     const mappedFrames = eventFrames.map((f) => {
       const version = (dbVersions || []).find((v) => v.id === f.current_version_id) || (dbVersions || []).find((v) => v.frame_id === f.id);
+      
+      const isLandscape = f.aspect_ratio === '3:2' || f.dimensions === '1800x1200';
+      const canvasW = isLandscape ? 1800 : 1200;
+      const canvasH = isLandscape ? 1200 : 1800;
+
+      // INT-006: Normalize slot coordinates to percentage if in absolute pixels
       const slots = (dbSlots || [])
         .filter((s) => version && s.frame_version_id === version.id)
         .sort((a, b) => a.slot_index - b.slot_index)
-        .map((s) => ({
-          id: s.id,
-          frame_version_id: s.frame_version_id,
-          slot_index: s.slot_index,
-          x_coord: Number(s.x_coord),
-          y_coord: Number(s.y_coord),
-          width: Number(s.width),
-          height: Number(s.height),
-          rotation: Number(s.rotation || 0),
-          fit_mode: s.fit_mode || 'cover',
-          created_at: s.created_at,
-        }));
+        .map((s) => {
+          let x = Number(s.x_coord || 0);
+          let y = Number(s.y_coord || 0);
+          let w = Number(s.width || 0);
+          let h = Number(s.height || 0);
+
+          if (w > 100) {
+            x = Math.round(((x / canvasW) * 100) * 100) / 100;
+            y = Math.round(((y / canvasH) * 100) * 100) / 100;
+            w = Math.round(((w / canvasW) * 100) * 100) / 100;
+            h = Math.round(((h / canvasH) * 100) * 100) / 100;
+          }
+
+          return {
+            id: s.id,
+            frame_version_id: s.frame_version_id,
+            slot_index: s.slot_index,
+            x_coord: x,
+            y_coord: y,
+            width: w,
+            height: h,
+            rotation: Number(s.rotation || 0),
+            fit_mode: s.fit_mode || 'cover',
+            created_at: s.created_at,
+          };
+        });
 
       const downloadUrl = version?.asset_path
         ? (version.asset_path.startsWith('http') ? version.asset_path : `https://hxefecxvforrrbggmvmm.supabase.co/storage/v1/object/public/frames/${version.asset_path}`)
         : '';
 
       const cat = (dbCategories || []).find((c) => c.id === f.category_id);
+
+      // INT-005: Ensure consistent lowercase path for frame asset syncing
+      const normalizedRelativePath = `frames/${f.id}.png`;
 
       return {
         id: f.id,
@@ -114,10 +144,10 @@ export async function GET(req: NextRequest) {
         category_slug: cat?.slug || 'classic',
         category_name: cat?.name || 'Classic',
         dimensions: '4R',
-        aspect_ratio: f.aspect_ratio || '2:3',
+        aspect_ratio: f.aspect_ratio || (isLandscape ? '3:2' : '2:3'),
         current_version_id: version?.id || 'v1',
         preview_url: downloadUrl,
-        asset_path: `frames/${f.id}.png`,
+        asset_path: normalizedRelativePath,
         checksum_sha256: version?.checksum_sha256 || '',
         is_archived: false,
         created_at: f.created_at || new Date().toISOString(),
@@ -130,7 +160,7 @@ export async function GET(req: NextRequest) {
           download_url: downloadUrl,
           file_size_bytes: version?.file_size_bytes || 0,
           checksum_sha256: version?.checksum_sha256 || '',
-          target_relative_path: `frames/${f.id}.png`,
+          target_relative_path: normalizedRelativePath,
         },
       };
     });

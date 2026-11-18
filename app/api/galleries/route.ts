@@ -8,29 +8,90 @@ export async function GET(req: NextRequest) {
 
     // 1. Single Gallery Query for public customer view
     if (sessionId) {
+      // Robust query: avoid invalid nested join sessions.events
       const { data: galleryRow } = await supabase
         .from('digital_galleries')
-        .select('*, sessions(session_number, events(name, event_date))')
+        .select('*')
         .eq('session_id', sessionId)
         .maybeSingle();
 
-      const eventName = galleryRow?.sessions?.events?.name || 'Popcut Wedding — The Ritz-Carlton';
-      const eventDate = galleryRow?.sessions?.events?.event_date || '15 November 2026';
+      // Retrieve session details
+      const { data: sessionRow } = await supabase
+        .from('sessions')
+        .select('id, session_number, event_id')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+      // Retrieve event details if event_id is present
+      let eventName = 'Popcut Photobooth Studio';
+      let eventDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+      if (sessionRow?.event_id) {
+        const { data: eventRow } = await supabase
+          .from('events')
+          .select('name, start_date')
+          .eq('id', sessionRow.event_id)
+          .maybeSingle();
+
+        if (eventRow) {
+          eventName = eventRow.name;
+          eventDate = eventRow.start_date
+            ? new Date(eventRow.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            : eventDate;
+        }
+      }
+
+      // Retrieve gallery assets
+      let assets: any[] = [];
+      if (galleryRow?.id) {
+        const { data: dbAssets } = await supabase
+          .from('gallery_assets')
+          .select('*')
+          .eq('gallery_id', galleryRow.id)
+          .order('pose_number', { ascending: true });
+        assets = dbAssets || [];
+      }
+
+      // Also check photos table if gallery_assets is empty
+      if (assets.length === 0) {
+        const { data: dbPhotos } = await supabase
+          .from('photos')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('pose_number', { ascending: true });
+
+        if (dbPhotos && dbPhotos.length > 0) {
+          assets = dbPhotos.map((p) => ({
+            id: p.id,
+            pose_number: p.pose_number,
+            asset_type: 'ORIGINAL_PHOTO',
+            asset_url: p.watermarked_photo_url || p.raw_photo_url || '',
+          }));
+        }
+      }
+
+      const stripAsset = assets.find((a) => a.asset_type === 'PHOTOSTRIP');
+      const photoItems = assets
+        .filter((a) => a.asset_type !== 'PHOTOSTRIP')
+        .map((a, idx) => ({
+          id: a.id || String(idx + 1),
+          pose_number: a.pose_number || idx + 1,
+          url: a.asset_url || a.url || '',
+        }));
 
       return NextResponse.json({
         success: true,
         gallery: {
           id: galleryRow?.id || `gal-${sessionId.slice(0, 8)}`,
           session_id: sessionId,
+          session_number: sessionRow?.session_number || sessionId.slice(0, 8),
           event_name: eventName,
           event_date: eventDate,
-          photostrip_url: `/samples/photostrip-sample.jpg`,
-          photos: [
-            { id: '1', pose_number: 1, url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&auto=format&fit=crop' },
-            { id: '2', pose_number: 2, url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=800&auto=format&fit=crop' },
-            { id: '3', pose_number: 3, url: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=800&auto=format&fit=crop' },
-            { id: '4', pose_number: 4, url: 'https://images.unsplash.com/photo-1519225424988-51000632d43e?w=800&auto=format&fit=crop' },
-          ],
+          photostrip_url: stripAsset?.asset_url || `/samples/photostrip-sample.jpg`,
+          photos: photoItems,
+          qr_route: galleryRow?.qr_route || `https://popcut.id/gallery/${sessionId}`,
+          upload_status: galleryRow?.upload_status || 'AVAILABLE',
+          expires_at: galleryRow?.expires_at || new Date(Date.now() + 14 * 86400000).toISOString(),
         },
       });
     }
@@ -64,6 +125,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('Error in galleries route:', err);
-    return NextResponse.json({ success: true, galleries: [] });
+    return NextResponse.json({ success: false, error: err?.message, galleries: [] }, { status: 500 });
   }
 }
