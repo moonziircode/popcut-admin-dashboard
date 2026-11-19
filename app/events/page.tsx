@@ -30,11 +30,11 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
-import { initialPackages, initialFrames, initialBooths } from '@/lib/data/mock-data';
 import { PhotoboothEvent } from '@/types/database.types';
 
 export default function EventsPage() {
   const [events, setEvents] = useState<PhotoboothEvent[]>([]);
+  const [availablePackages, setAvailablePackages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
@@ -60,17 +60,24 @@ export default function EventsPage() {
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
   const [selectedFrames, setSelectedFrames] = useState<string[]>([]);
 
-  // Fetch events from backend API on mount
+  // Fetch events & packages from backend API on mount
   const loadEvents = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/events');
+      const [res, pkgRes] = await Promise.all([
+        fetch('/api/events'),
+        fetch('/api/packages'),
+      ]);
       const data = await res.json();
+      const pkgData = await pkgRes.json();
       if (data && Array.isArray(data.events)) {
         setEvents(data.events);
       }
+      if (pkgData && Array.isArray(pkgData.packages)) {
+        setAvailablePackages(pkgData.packages);
+      }
     } catch (e) {
-      console.error('Failed to load events:', e);
+      console.error('Failed to load events/packages:', e);
     } finally {
       setIsLoading(false);
     }
@@ -682,7 +689,7 @@ export default function EventsPage() {
                 Paket Foto yang Diberlakukan untuk Event Ini:
               </label>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                {initialPackages.map((pkg) => {
+                {availablePackages.map((pkg) => {
                   const isChecked = selectedPackages.includes(pkg.id);
                   return (
                     <label

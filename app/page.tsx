@@ -21,30 +21,35 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatRupiah, formatDateId } from '@/lib/utils';
-import { initialBooths, initialPrintJobs } from '@/lib/data/mock-data';
-import { Transaction, Session } from '@/types/database.types';
+import { Transaction, Session, Booth } from '@/types/database.types';
 
 export default function OverviewPage() {
   const [period, setPeriod] = useState<'today' | '7days' | 'month'>('today');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [booths, setBooths] = useState<Booth[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [trxRes, sesRes] = await Promise.all([
+        const [trxRes, sesRes, bthRes] = await Promise.all([
           fetch('/api/transactions'),
           fetch('/api/sessions'),
+          fetch('/api/booths'),
         ]);
         const trxData = await trxRes.json();
         const sesData = await sesRes.json();
+        const bthData = await bthRes.json();
         if (trxData.success && Array.isArray(trxData.transactions)) {
           setTransactions(trxData.transactions);
         }
         if (sesData.success && Array.isArray(sesData.sessions)) {
           setSessions(sesData.sessions);
+        }
+        if (bthData.success && Array.isArray(bthData.booths)) {
+          setBooths(bthData.booths);
         }
       } catch (err) {
         console.error('Failed to load overview data:', err);
@@ -62,7 +67,7 @@ export default function OverviewPage() {
   const pendingTransactions = transactions.filter((t) => t.payment_status === 'PENDING');
   const completedSessions = sessions.filter((s) => s.session_status === 'COMPLETED');
   const unknownPrintJobs: any[] = [];
-  const onlineBooths = initialBooths.filter((b) => b.status === 'ONLINE');
+  const onlineBooths = booths.filter((b) => b.status === 'ONLINE');
 
   return (
     <AppShell
@@ -125,7 +130,7 @@ export default function OverviewPage() {
                 Peringatan Operasional: {unknownPrintJobs.length} Print Job Membutuhkan Rekonsiliasi Fisik
               </p>
               <p className="text-amber-800 mt-0.5 leading-relaxed">
-                Job <strong>{unknownPrintJobs[0].print_job_number}</strong> di {initialBooths.find(b => b.id === unknownPrintJobs[0].booth_id)?.name} berstatus <strong>UNKNOWN</strong> (printer timeout). Sesuai SOP, mohon cek fisik lembar cetak di booth sebelum menyetujui cetak ulang agar kertas tidak terbuang.
+                Job <strong>{unknownPrintJobs[0].print_job_number}</strong> di {booths.find(b => b.id === unknownPrintJobs[0].booth_id)?.name} berstatus <strong>UNKNOWN</strong> (printer timeout). Sesuai SOP, mohon cek fisik lembar cetak di booth sebelum menyetujui cetak ulang agar kertas tidak terbuang.
               </p>
             </div>
             <Link href="/print-jobs">
@@ -208,7 +213,7 @@ export default function OverviewPage() {
             </div>
             <div className="mt-3">
               <div className="text-2xl font-bold font-headline text-content-primary">
-                {onlineBooths.length} / {initialBooths.length} Online
+                {onlineBooths.length} / {booths.length} Online
               </div>
               <div className="flex items-center gap-1.5 mt-1 text-[11px] text-emerald-700 font-medium">
                 <span className="w-2 h-2 rounded-full bg-status-success inline-block" />
@@ -311,7 +316,7 @@ export default function OverviewPage() {
               </CardHeader>
 
               <div className="space-y-3">
-                {initialBooths.map((booth) => (
+                {booths.map((booth) => (
                   <div
                     key={booth.id}
                     className="p-3 rounded border border-border bg-canvas/30 space-y-2 hover:border-border-strong transition-colors"

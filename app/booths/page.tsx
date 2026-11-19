@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   MonitorDot,
@@ -26,13 +26,32 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { formatDateId } from '@/lib/utils';
-import { initialBooths, initialEvents } from '@/lib/data/mock-data';
 import { Booth } from '@/types/database.types';
 
 export default function BoothsPage() {
-  const [booths, setBooths] = useState<Booth[]>(initialBooths);
+  const [booths, setBooths] = useState<Booth[]>([]);
   const [activeTab, setActiveTab] = useState<'fleet' | 'sync'>('fleet');
-  const activeEvent = initialEvents.find((e) => e.is_active) || null;
+  const [activeEvent, setActiveEvent] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/booths')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.booths)) {
+          setBooths(data.booths);
+        }
+      })
+      .catch((err) => console.error('Failed to load booths:', err));
+
+    fetch('/api/events?active_only=true')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.event) {
+          setActiveEvent(data.event);
+        }
+      })
+      .catch((err) => console.error('Failed to load active event:', err));
+  }, []);
 
   // Register & Pairing Modal
   const [isPairingModalOpen, setIsPairingModalOpen] = useState(false);

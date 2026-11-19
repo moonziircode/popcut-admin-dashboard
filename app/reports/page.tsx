@@ -18,7 +18,6 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatRupiah } from '@/lib/utils';
-import { initialBooths } from '@/lib/data/mock-data';
 import { Transaction } from '@/types/database.types';
 
 export default function ReportsPage() {
