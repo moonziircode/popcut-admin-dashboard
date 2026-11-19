@@ -73,6 +73,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
 
+    if (data?.user?.id) {
+      try {
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          email,
+          full_name,
+          status: 'ACTIVE',
+        });
+      } catch (profErr) {
+        console.warn('[API Users] Profile sync notice:', profErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `User ${full_name} (${email}) berhasil ditambahkan ke Supabase Auth.`,

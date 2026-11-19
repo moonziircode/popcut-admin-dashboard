@@ -164,6 +164,11 @@ export async function verifyMidtransSignatureAsync(params: {
   isProduction?: boolean;
 }): Promise<boolean> {
   const config = await getMidtransConfigAsync(params.isProduction === false);
+  if (!config.serverKey) {
+    console.error('[Midtrans Webhook] Gagal memverifikasi signature: MIDTRANS_SERVER_KEY tidak terkonfigurasi.');
+    return false;
+  }
+
   const formattedAmount =
     typeof params.grossAmount === 'number'
       ? params.grossAmount.toFixed(2)
@@ -185,6 +190,11 @@ export function verifyMidtransSignature(params: {
   isProduction?: boolean;
 }): boolean {
   const config = getMidtransConfig(params.isProduction === false);
+  if (!config.serverKey) {
+    console.error('[Midtrans Webhook] Gagal memverifikasi signature: MIDTRANS_SERVER_KEY tidak terkonfigurasi.');
+    return false;
+  }
+
   const formattedAmount =
     typeof params.grossAmount === 'number'
       ? params.grossAmount.toFixed(2)
