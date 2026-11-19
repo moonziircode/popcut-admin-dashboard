@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   History,
   Shield,
@@ -21,20 +21,26 @@ import { formatDateId } from '@/lib/utils';
 import { ActivityLog } from '@/types/database.types';
 
 export default function ActivityLogPage() {
-  const [logs, setLogs] = useState<ActivityLog[]>([
-    {
-      id: 'log-001',
-      actor_id: 'u-1',
-      actor_email: 'aqsa@popcut.id',
-      action: 'SYSTEM_DATABASE_RESET',
-      entity_type: 'system',
-      entity_id: 'sys-clean-slate',
-      description: 'Pembersihan database operasional berhasil dijalankan. Konfigurasi payment gateway Midtrans dipertahankan 100%.',
-      before_state: { status: 'PREVIOUS_MIGRATION' },
-      after_state: { status: 'CLEAN_SLATE_EMPTY', frames: 0, packages: 0, events: 0, payment_gateway: 'MIDTRANS_INTACT' },
-      created_at: new Date().toISOString(),
-    },
-  ]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/activity-logs');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.logs)) {
+          setLogs(data.logs);
+        }
+      } catch (err) {
+        console.error('Failed to load activity logs:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchLogs();
+  }, []);
 
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { CustomerSessionCreatePayload, CustomerSessionCreateResponse } from '@/types/shared-contract';
 import { createSnapTransaction } from '@/lib/services/midtrans';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -76,8 +77,11 @@ export async function POST(req: NextRequest) {
     const packagePrice = Number(selectedPkg.price || 0);
     const sessionId = crypto.randomUUID();
     const transactionId = crypto.randomUUID();
-    const sessionNum = `SES-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const trxNum = `TRX-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randSuffix1 = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const randSuffix2 = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const sessionNum = `SES-${datePrefix}-${randSuffix1}`;
+    const trxNum = `TRX-${datePrefix}-${randSuffix2}`;
 
     const isInstantPaid = payload.payment_method === 'VOUCHER_100' || payload.payment_method === 'PREPAID_TICKET';
     const initialPaymentStatus: 'PAID' | 'PENDING' = isInstantPaid ? 'PAID' : 'PENDING';

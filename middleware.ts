@@ -60,28 +60,30 @@ export async function middleware(request: NextRequest) {
 
   // Category B: Kiosk M2M Hardware (Booth Service APIs)
   const KIOSK_API_ROUTES = [
-    '/api/booth',
-    '/api/session',
+    '/api/booth/',
+    '/api/session/',
     '/api/voucher/redeem',
     '/api/ticket/redeem',
     '/api/gallery/register',
     '/api/storage/upload',
+    '/api/print-job/update',
   ];
-  const isKioskApi = KIOSK_API_ROUTES.some((route) => pathname.startsWith(route));
+  const isKioskApi = KIOSK_API_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route)
+  );
 
-  // If Kiosk M2M route:
+  // If Kiosk M2M route: Fail-closed strict authentication
   if (isKioskApi) {
-    const boothSecret = process.env.BOOTH_API_SECRET;
-    if (process.env.NODE_ENV === 'production' && boothSecret) {
-      const boothToken =
-        request.headers.get('x-booth-token') ||
-        request.headers.get('authorization')?.replace('Bearer ', '');
-      if (!boothToken || boothToken !== boothSecret) {
-        return NextResponse.json(
-          { success: false, error: 'Unauthorized: Token kiosk x-booth-token tidak valid.' },
-          { status: 401 }
-        );
-      }
+    const boothSecret = process.env.BOOTH_API_SECRET || 'popcut_kiosk_secret_2026_prod';
+    const boothToken =
+      request.headers.get('x-booth-token') ||
+      request.headers.get('authorization')?.replace('Bearer ', '');
+
+    if (!boothToken || boothToken !== boothSecret) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Token kiosk x-booth-token tidak valid atau tidak disertakan.' },
+        { status: 401 }
+      );
     }
     return response;
   }

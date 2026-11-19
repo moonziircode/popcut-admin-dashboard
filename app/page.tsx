@@ -28,20 +28,23 @@ export default function OverviewPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [booths, setBooths] = useState<Booth[]>([]);
+  const [printJobs, setPrintJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [trxRes, sesRes, bthRes] = await Promise.all([
+        const [trxRes, sesRes, bthRes, prnRes] = await Promise.all([
           fetch('/api/transactions'),
           fetch('/api/sessions'),
           fetch('/api/booths'),
+          fetch('/api/print-jobs'),
         ]);
         const trxData = await trxRes.json();
         const sesData = await sesRes.json();
         const bthData = await bthRes.json();
+        const prnData = await prnRes.json();
         if (trxData.success && Array.isArray(trxData.transactions)) {
           setTransactions(trxData.transactions);
         }
@@ -50,6 +53,9 @@ export default function OverviewPage() {
         }
         if (bthData.success && Array.isArray(bthData.booths)) {
           setBooths(bthData.booths);
+        }
+        if (prnData.success && Array.isArray(prnData.print_jobs)) {
+          setPrintJobs(prnData.print_jobs);
         }
       } catch (err) {
         console.error('Failed to load overview data:', err);
@@ -66,7 +72,9 @@ export default function OverviewPage() {
   const totalRevenue = paidTransactions.reduce((acc, t) => acc + t.payable_amount, 0);
   const pendingTransactions = transactions.filter((t) => t.payment_status === 'PENDING');
   const completedSessions = sessions.filter((s) => s.session_status === 'COMPLETED');
-  const unknownPrintJobs: any[] = [];
+  const unknownPrintJobs = printJobs.filter(
+    (pj) => pj.status === 'UNKNOWN' || pj.status === 'FAILED'
+  );
   const onlineBooths = booths.filter((b) => b.status === 'ONLINE');
 
   return (

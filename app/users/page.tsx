@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users as UsersIcon,
   UserPlus,
@@ -30,52 +30,57 @@ interface UserItem {
 }
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<UserItem[]>([
-    {
-      id: 'u-1',
-      full_name: 'Aqsa Muflihan',
-      email: 'aqsa@popcut.id',
-      role: 'owner',
-      status: 'ACTIVE',
-      last_login: '2026-11-15T01:40:00Z',
-    },
-    {
-      id: 'u-2',
-      full_name: 'Rian Pratama',
-      email: 'rian.ops@popcut.id',
-      role: 'admin',
-      status: 'ACTIVE',
-      last_login: '2026-11-14T20:15:00Z',
-    },
-    {
-      id: 'u-3',
-      full_name: 'Siti Sarah',
-      email: 'siti.booth@popcut.id',
-      role: 'staff',
-      status: 'ACTIVE',
-      last_login: '2026-11-15T01:10:00Z',
-    },
-  ]);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) {
+        setUsers(data.users);
+      }
+    } catch (err) {
+      console.error('Failed to load users:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRoleType>('staff');
 
-  const handleInviteUser = () => {
+  const handleInviteUser = async () => {
     if (!inviteName.trim() || !inviteEmail.trim()) return;
-    const newUser: UserItem = {
-      id: `u-${Date.now()}`,
-      full_name: inviteName,
-      email: inviteEmail,
-      role: inviteRole,
-      status: 'INVITED',
-      last_login: new Date().toISOString(),
-    };
-    setUsers([...users, newUser]);
-    setIsInviteModalOpen(false);
-    setInviteName('');
-    setInviteEmail('');
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: inviteName,
+          email: inviteEmail,
+          role: inviteRole,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchUsers();
+        setIsInviteModalOpen(false);
+        setInviteName('');
+        setInviteEmail('');
+      } else {
+        alert(data.error || 'Gagal menambahkan user');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Gagal menambahkan user');
+    }
   };
 
   const permissionMatrix = [

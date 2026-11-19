@@ -80,16 +80,45 @@ export async function POST(req: NextRequest) {
     // 1. Find existing transaction
     const { data: trx } = await supabase
       .from('transactions')
-      .select('id, transaction_number')
+      .select('id, transaction_number, payment_status, paid_at')
       .eq('transaction_number', order_id)
       .maybeSingle();
 
-    // 2. Update transaction status
+    // 2. Anti-downgrade check: If transaction is already PAID, do NOT overwrite with EXPIRED or FAILED
+    if (trx?.payment_status === 'PAID' && mappedStatus !== 'PAID') {
+      console.warn(
+        `[Midtrans Webhook] Ignoring status downgrade for order ${order_id}: already PAID, attempted -> ${mappedStatus}`
+      );
+
+      if (trx?.id) {
+        try {
+          await supabase.from('payment_events').insert({
+            transaction_id: trx.id,
+            event_type: `MIDTRANS_BLOCKED_DOWNGRADE_${(transaction_status || 'NOTIFICATION').toUpperCase()}`,
+            payload: notification,
+            received_at: new Date().toISOString(),
+          });
+        } catch (peErr) {
+          console.warn('[Midtrans Webhook] Failed to insert blocked payment_event:', peErr);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        status: 'IGNORED_ALREADY_PAID',
+        order_id,
+        current_status: 'PAID',
+        attempted_status: mappedStatus,
+        message: 'Transaksi sudah berstatus PAID, perubahan status ke FAILED/EXPIRED diabaikan.',
+      });
+    }
+
+    // 3. Update transaction status
     const { error: updateError } = await supabase
       .from('transactions')
       .update({
         payment_status: mappedStatus,
-        paid_at: mappedStatus === 'PAID' ? (transaction_time || new Date().toISOString()) : null,
+        paid_at: mappedStatus === 'PAID' ? (transaction_time || new Date().toISOString()) : (trx?.paid_at || null),
         provider_ref: transaction_id || null,
         updated_at: new Date().toISOString(),
       })

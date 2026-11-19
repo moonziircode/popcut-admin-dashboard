@@ -62,17 +62,69 @@ test.describe('Popcut.id Full-Stack Integration & Spec Verification Suite', () =
     expect(verifyData.success).toBe(true);
     expect(verifyData.payment_status).toBe('PENDING');
 
-    // 4. Kiosk route bypasses auth check in dev/test
-    const kioskRes = await request.get('/api/booth/config?booth_id=RIG-M1-01');
-    expect(kioskRes.status()).toBe(200);
+    // 4. Kiosk route fail-closed security: requires valid x-booth-token
+    const kioskUnauthRes = await request.get('/api/booth/config?booth_id=RIG-M1-01');
+    expect(kioskUnauthRes.status()).toBe(401);
 
-    // 5. Kiosk storage upload route bypasses auth check (returns 400 for empty payload instead of 401 Unauthorized)
+    const kioskWrongTokenRes = await request.get('/api/booth/config?booth_id=RIG-M1-01', {
+      headers: { 'x-booth-token': 'WRONG_UNAUTHORIZED_TOKEN' },
+    });
+    expect(kioskWrongTokenRes.status()).toBe(401);
+
+    const kioskAuthRes = await request.get('/api/booth/config?booth_id=RIG-M1-01', {
+      headers: { 'x-booth-token': 'popcut_kiosk_secret_2026_prod' },
+    });
+    expect(kioskAuthRes.status()).toBe(200);
+
+    // 5. Kiosk storage upload route security checks
+    // 5a. Missing token -> 401
+    const uploadNoToken = await request.post('/api/storage/upload');
+    expect(uploadNoToken.status()).toBe(401);
+
+    // 5b. Invalid token -> 401
+    const uploadWrongToken = await request.post('/api/storage/upload', {
+      headers: { 'x-booth-token': 'BAD_TOKEN' },
+    });
+    expect(uploadWrongToken.status()).toBe(401);
+
+    // 5c. Valid token with empty payload -> 400 (Bad Request: File binary wajib disertakan)
     const uploadProbeRes = await request.post('/api/storage/upload', {
-      headers: {
-        'x-booth-token': 'popcut_kiosk_secret_2026_prod',
+      headers: { 'x-booth-token': 'popcut_kiosk_secret_2026_prod' },
+    });
+    expect(uploadProbeRes.status()).toBe(400);
+
+    // 5d. Path traversal rejection -> 400
+    const sampleJpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+    const traversalRes = await request.post('/api/storage/upload', {
+      headers: { 'x-booth-token': 'popcut_kiosk_secret_2026_prod' },
+      multipart: {
+        file: {
+          name: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          buffer: sampleJpeg,
+        },
+        object_key: '../../etc/passwd',
       },
     });
-    expect(uploadProbeRes.status()).not.toBe(401);
+    expect(traversalRes.status()).toBe(400);
+    const traversalData = await traversalRes.json();
+    expect(traversalData.error).toContain('Path traversal');
+
+    // 5e. Unknown booth rejection -> 403
+    const unknownBoothRes = await request.post('/api/storage/upload', {
+      headers: { 'x-booth-token': 'popcut_kiosk_secret_2026_prod' },
+      multipart: {
+        file: {
+          name: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          buffer: sampleJpeg,
+        },
+        booth_id: 'UNKNOWN_BOOTH_9999',
+      },
+    });
+    expect(unknownBoothRes.status()).toBe(403);
+    const unknownBoothData = await unknownBoothRes.json();
+    expect(unknownBoothData.error).toContain('tidak terdaftar');
   });
 
   // --------------------------------------------------------------------------
@@ -155,7 +207,9 @@ test.describe('Popcut.id Full-Stack Integration & Spec Verification Suite', () =
   test('Flow 3: Booth config delivers active catalog, lowercase paths, and normalized 4R slots', async ({
     request,
   }) => {
-    const res = await request.get('/api/booth/config?booth_id=RIG-M1-01');
+    const res = await request.get('/api/booth/config?booth_id=RIG-M1-01', {
+      headers: { 'x-booth-token': 'popcut_kiosk_secret_2026_prod' },
+    });
     expect(res.status()).toBe(200);
     const data = await res.json();
 
@@ -312,5 +366,67 @@ test.describe('Popcut.id Full-Stack Integration & Spec Verification Suite', () =
 
     expect(viewErr).toBeNull();
     expect(Array.isArray(viewGalleries)).toBe(true);
+  });
+
+  // --------------------------------------------------------------------------
+  // FLOW 6: WEBHOOK ANTI-DOWNGRADE & IDEMPOTENCY
+  // --------------------------------------------------------------------------
+  test('Flow 6: Midtrans webhook prevents status downgrade on already PAID transaction', async ({
+    request,
+  }) => {
+    // 1. Create a test session and transaction via Kiosk API
+    const createRes = await request.post('/api/session/create', {
+      headers: { 'x-booth-token': 'popcut_kiosk_secret_2026_prod' },
+      data: {
+        idempotency_key: `e2e-webhook-test-${Date.now()}`,
+        booth_id: 'RIG-M1-01',
+        package_id: '00000000-0000-0000-0000-000000000001',
+        payment_method: 'CASH',
+      },
+    });
+    expect(createRes.status()).toBe(200);
+    const createData = await createRes.json();
+    const trxNumber = createData.transaction_number;
+    expect(trxNumber).toBeDefined();
+
+    // 2. Mark it as PAID in Supabase directly
+    await supabase
+      .from('transactions')
+      .update({ payment_status: 'PAID', paid_at: new Date().toISOString() })
+      .eq('transaction_number', trxNumber);
+
+    // 3. Simulate an out-of-order 'expire' notification from Midtrans
+    const serverKey =
+      process.env.MIDTRANS_SANDBOX_SERVER_KEY ||
+      process.env.MIDTRANS_SERVER_KEY ||
+      'SB-Mid-server-U9sBTAc_JXUN9sYMkbzY-gNG';
+    const grossAmount = '35000.00';
+    const statusCode = '200';
+    const signatureKey = crypto
+      .createHash('sha512')
+      .update(`${trxNumber}${statusCode}${grossAmount}${serverKey}`)
+      .digest('hex');
+
+    const webhookRes = await request.post('/api/webhooks/payment', {
+      data: {
+        order_id: trxNumber,
+        status_code: statusCode,
+        gross_amount: grossAmount,
+        signature_key: signatureKey,
+        transaction_status: 'expire',
+      },
+    });
+    expect(webhookRes.status()).toBe(200);
+    const webhookData = await webhookRes.json();
+    expect(webhookData.status).toBe('IGNORED_ALREADY_PAID');
+
+    // 4. Verify transaction status in Supabase remains PAID
+    const { data: verifiedTrx } = await supabase
+      .from('transactions')
+      .select('payment_status, paid_at')
+      .eq('transaction_number', trxNumber)
+      .single();
+    expect(verifiedTrx.payment_status).toBe('PAID');
+    expect(verifiedTrx.paid_at).not.toBeNull();
   });
 });
