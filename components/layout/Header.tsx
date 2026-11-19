@@ -14,7 +14,6 @@ import {
   Settings,
   Shield,
 } from 'lucide-react';
-import { initialEvents, initialBooths } from '@/lib/data/mock-data';
 
 interface HeaderProps {
   title?: string;
@@ -24,8 +23,8 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
   const router = useRouter();
-  const activeEvent = initialEvents.find((e) => e.is_active) || initialEvents[0];
-  const primaryRig = initialBooths[0];
+  const [activeEventName, setActiveEventName] = useState<string>('Popcut Active Event');
+  const [onlineRigCount, setOnlineRigCount] = useState<number>(1);
 
   const [currentUser, setCurrentUser] = useState<{
     id: string;
@@ -48,6 +47,25 @@ export function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
       .then((data) => {
         if (data.authenticated && data.user) {
           setCurrentUser(data.user);
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/events?active_only=true')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.event?.name) {
+          setActiveEventName(data.event.name);
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/booths')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.booths)) {
+          const online = data.booths.filter((b: any) => b.status === 'ONLINE').length;
+          setOnlineRigCount(online || 1);
         }
       })
       .catch(() => {});
@@ -125,11 +143,11 @@ export function Header({ title, subtitle, breadcrumbs }: HeaderProps) {
           <span className="font-semibold text-[11px] text-content-primary flex items-center gap-1">
             <span className="text-brand-contrast">🎪</span>
             <span className="truncate max-w-[200px] group-hover:underline">
-              {activeEvent?.name || 'Popcut Wedding — The Ritz-Carlton'}
+              {activeEventName}
             </span>
           </span>
           <span className="text-[10px] text-content-muted border-l border-border pl-2">
-            Rig #1 Online
+            {onlineRigCount} Rig Online
           </span>
         </Link>
 
