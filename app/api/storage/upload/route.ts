@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'File berhasil diunggah ke storage.',
+      public_url: result.url,
+      object_key: result.objectKey,
       storage: {
         provider: result.provider,
         bucket: result.bucket,

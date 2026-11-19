@@ -1,0 +1,27 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://media.popcut.id",
+      "https://popcut-admin-dashboard.vercel.app",
+      "http://localhost:3000",
+      "http://localhost:3001"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "HEAD",
+      "PUT",
+      "POST"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag",
+      "Content-Type",
+      "Content-Length",
+      "x-checksum-sha256",
+      "x-session-id"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]

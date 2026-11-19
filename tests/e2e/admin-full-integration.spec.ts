@@ -65,6 +65,14 @@ test.describe('Popcut.id Full-Stack Integration & Spec Verification Suite', () =
     // 4. Kiosk route bypasses auth check in dev/test
     const kioskRes = await request.get('/api/booth/config?booth_id=RIG-M1-01');
     expect(kioskRes.status()).toBe(200);
+
+    // 5. Kiosk storage upload route bypasses auth check (returns 400 for empty payload instead of 401 Unauthorized)
+    const uploadProbeRes = await request.post('/api/storage/upload', {
+      headers: {
+        'x-booth-token': 'popcut_kiosk_secret_2026_prod',
+      },
+    });
+    expect(uploadProbeRes.status()).not.toBe(401);
   });
 
   // --------------------------------------------------------------------------

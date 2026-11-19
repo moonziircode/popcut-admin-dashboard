@@ -65,6 +65,7 @@ export async function middleware(request: NextRequest) {
     '/api/voucher/redeem',
     '/api/ticket/redeem',
     '/api/gallery/register',
+    '/api/storage/upload',
   ];
   const isKioskApi = KIOSK_API_ROUTES.some((route) => pathname.startsWith(route));
 

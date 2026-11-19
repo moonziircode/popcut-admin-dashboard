@@ -29,9 +29,18 @@ Seluruh 15 temuan integrasi kritis (P0, P1, P2) telah diselesaikan, diuji secara
 | **INT-010** | `app/api/galleries/route.ts` | **CRITICAL** | Join relasional tidak valid `sessions.events` menyebabkan PostgREST error | Join relasional invalid dihapus. Data event di-query terpisah, dummy Unsplash placeholder dihapus, dan data riil dari `gallery_assets` serta `photos` di-query secara langsung. | 🟢 **RESOLVED** |
 | **INT-011** | Supabase PostgreSQL Views | **HIGH** | Mismatch nama tabel `galleries` vs `digital_galleries` | Dibuat compatibility views di Supabase: `public.galleries AS SELECT * FROM public.digital_galleries;` dan `public.gallery_items AS SELECT * FROM public.gallery_assets;`. | 🟢 **RESOLVED** |
 | **INT-012** | `app/settings/page.tsx` & `/api/settings` | **HIGH** | Form settings admin hanya dummy tanpa persistensi backend | Dibuat API handler `GET` dan `POST/PUT /api/settings` yang menyimpan pengaturan ke tabel `public.app_settings` (dengan constraint `{ onConflict: 'key' }`) untuk bagian business, kiosk, dan storage; form UI dihubungkan penuh dengan state live, feedback error, dan toast konfirmasi. | 🟢 **RESOLVED** |
-| **INT-013** | Storage & Cloudflare R2 | **MEDIUM** | Verifikasi integritas CDN & storage | Validasi CDN storage R2 dan Supabase bucket `frames`, `sessions`, `photos`, dan `backups`. | 🟢 **RESOLVED** |
-| **INT-014** | `middleware.ts` | **CRITICAL** | Wildcard `/api/*` meloloskan seluruh API tanpa otorisasi | Diterapkan 3-tier security architecture: Category A (Public Absolute: `/login`, `/gallery/*`, `/api/auth/*`, `/api/payment/verify`, `/api/webhooks/*`), Category B (Kiosk M2M Hardware dengan verifikasi token), dan Category C (Admin Internal dengan validasi sesi Supabase Auth & cookie). Akses unauthenticated ke admin API ditolak dengan HTTP 401 JSON. | 🟢 **RESOLVED** |
-| **INT-015** | Database RPC Functions | **HIGH** | Penebusan voucher/tiket offline rentan double spending | Verifikasi ketersediaan dan kesiapan database RPC atomic `redeem_voucher_atomic` dan `redeem_ticket_atomic` pada PostgreSQL. | 🟢 **RESOLVED** |
+| **INT-013** | Storage & Cloudflare R2 | **MEDIUM** | Verifikasi integritas CDN & storage | Validasi CDN storage R2, konfigurasi CORS policy, fallback streaming `/api/storage/upload` via `KIOSK_API_ROUTES`, dan Supabase bucket `frames`, `sessions`, `photos`, dan `backups`. | 🟢 **RESOLVED** |
+| **INT-014** | `middleware.ts` | **CRITICAL** | Wildcard `/api/*` meloloskan seluruh API tanpa otorisasi | Diterapkan 3-tier security architecture: Category A (Public Absolute: `/login`, `/gallery/*`, `/api/auth/*`, `/api/payment/verify`, `/api/webhooks/*`), Category B (Kiosk M2M Hardware dengan verifikasi token: `/api/booth/*`, `/api/session/*`, `/api/voucher/redeem`, `/api/ticket/redeem`, `/api/gallery/register`, `/api/storage/upload`), dan Category C (Admin Internal dengan validasi sesi Supabase Auth & cookie). Akses unauthenticated ke admin API ditolak dengan HTTP 401 JSON. | 🟢 **RESOLVED** |
+| **INT-015** | Database RPC Functions | **HIGH** | Penebusan voucher/tiket offline rentan double spending | Verifikasi ketersediaan dan kesiapan database RPC atomic `redeem_voucher_atomic` dan `redeem_ticket_atomic` pada PostgreSQL serta penerapan RLS policies pada tabel `public.app_settings`. | 🟢 **RESOLVED** |
+
+---
+
+## 1.1 ELIMINASI TOTAL MOCK DATA DI SELURUH APLIKASI
+- `app/booths/page.tsx`: 100% data riil dari Supabase `/api/booths` & `/api/events` (mock-data dieliminasi total).
+- `app/events/page.tsx`: Checkbox pemilihan paket membaca katalog riil dari tabel `packages` Supabase (mock-data dieliminasi total).
+- `app/page.tsx`: Metrik dan daftar status armada membaca data riil dari tabel `booths` Supabase (mock-data dieliminasi total).
+- `app/reports/page.tsx`: Dead code import `initialBooths` dihapus bersih.
+- Audit string `mock-data` di dalam folder `app/`: **0 BARIS (BERSIH TOTAL / CLEAN: 0 MATCHES)**.
 
 ---
 
