@@ -43,12 +43,29 @@ export async function GET(req: NextRequest) {
 
       // Retrieve gallery assets
       let assets: any[] = [];
+      const publicBase = (
+        process.env.CLOUDFLARE_R2_PUBLIC_URL ||
+        process.env.R2_PUBLIC_URL ||
+        'https://pub-f19eb9a811cc4ae192a7a8411dd1204b.r2.dev'
+      ).replace(/\/+$/, '');
+
+      const resolveAssetUrl = (item: any): string => {
+        if (item.asset_url) return item.asset_url;
+        if (item.url) return item.url;
+        if (item.storage_path) {
+          if (item.storage_path.startsWith('http://') || item.storage_path.startsWith('https://')) {
+            return item.storage_path;
+          }
+          return `${publicBase}/${item.storage_path.replace(/^\/+/, '')}`;
+        }
+        return '';
+      };
+
       if (galleryRow?.id) {
         const { data: dbAssets } = await supabase
           .from('gallery_assets')
           .select('*')
-          .eq('gallery_id', galleryRow.id)
-          .order('pose_number', { ascending: true });
+          .eq('gallery_id', galleryRow.id);
         assets = dbAssets || [];
       }
 
@@ -64,19 +81,19 @@ export async function GET(req: NextRequest) {
           assets = dbPhotos.map((p) => ({
             id: p.id,
             pose_number: p.pose_number,
-            asset_type: 'ORIGINAL_PHOTO',
+            asset_type: 'ORIGINAL',
             asset_url: p.watermarked_photo_url || p.raw_photo_url || '',
           }));
         }
       }
 
-      const stripAsset = assets.find((a) => a.asset_type === 'PHOTOSTRIP');
+      const stripAsset = assets.find((a) => a.asset_type === 'PHOTOSTRIP' || a.asset_type === 'RENDERED_STRIP');
       const photoItems = assets
-        .filter((a) => a.asset_type !== 'PHOTOSTRIP')
+        .filter((a) => a.asset_type !== 'PHOTOSTRIP' && a.asset_type !== 'RENDERED_STRIP')
         .map((a, idx) => ({
           id: a.id || String(idx + 1),
           pose_number: a.pose_number || idx + 1,
-          url: a.asset_url || a.url || '',
+          url: resolveAssetUrl(a),
         }));
 
       return NextResponse.json({
@@ -87,7 +104,7 @@ export async function GET(req: NextRequest) {
           session_number: sessionRow?.session_number || sessionId.slice(0, 8),
           event_name: eventName,
           event_date: eventDate,
-          photostrip_url: stripAsset?.asset_url || `/samples/photostrip-sample.jpg`,
+          photostrip_url: stripAsset ? resolveAssetUrl(stripAsset) : `/samples/photostrip-sample.jpg`,
           photos: photoItems,
           qr_route: galleryRow?.qr_route || `https://popcut.id/gallery/${sessionId}`,
           upload_status: galleryRow?.upload_status || 'AVAILABLE',
